@@ -1,0 +1,12 @@
+graphify-out
+
+# IDE local
+.idea/
+.vscode/
+
+# Claude Code: estado local de la maquina/sesion, nunca compartido -- ver
+# hallazgo real (2026-08-03): settings.local.json tenia API keys reales
+# (NVIDIA/OpenAI/xAI/Groq/Gemini) incrustadas en strings de comandos
+# aprobados previamente, a punto de subirse a git sin este gitignore.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

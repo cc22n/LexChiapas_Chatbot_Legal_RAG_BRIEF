@@ -1,0 +1,90 @@
+{
+  "_note": "Model slugs verificados el 2026-07-07 contra /v1/models y con una llamada real (ver PLAN.md 'Entorno real'). El catalogo de NVIDIA NIM cambia: si alguno empieza a fallar, volver a listar /v1/models antes de asumir que el slug sigue existiendo.",
+  "embeddings": {
+    "provider": "nvidia_nim",
+    "model": "nvidia/nv-embedqa-e5-v5",
+    "base_url": "https://integrate.api.nvidia.com/v1",
+    "dimension": 1024
+  },
+  "llm": {
+    "_note_multiproveedor": "fallback_order es una lista de {provider, model}. 'provider' debe existir en 'providers' (base_url) y tener su api_key configurada en .env (ver app/config.py Settings). NVIDIA NIM va primero (free tier, ~40 RPM, es el proveedor principal del proyecto). OpenAI y xAI van al final, a proposito, como ultimo recurso: ambos corren con creditos limitados de $5 que se agotan con uso real, verificados el 2026-07-09 (gpt-4o-mini y grok-4.20-0309-non-reasoning respondieron bien). Groq y Gemini NO estan en el fallback: Groq con la key actual da 'expired_api_key', Gemini da cuota 0 en el tier gratis para al menos un modelo probado -- agregarlos cuando esas keys esten realmente utilizables.",
+    "providers": {
+      "nvidia_nim": {
+        "base_url": "https://integrate.api.nvidia.com/v1"
+      },
+      "openai": {
+        "base_url": "https://api.openai.com/v1"
+      },
+      "xai": {
+        "base_url": "https://api.x.ai/v1"
+      }
+    },
+    "fallback_order": [
+      {
+        "provider": "nvidia_nim",
+        "model": "minimaxai/minimax-m3"
+      },
+      {
+        "provider": "nvidia_nim",
+        "model": "deepseek-ai/deepseek-v4-pro"
+      },
+      {
+        "provider": "nvidia_nim",
+        "model": "z-ai/glm-5.2"
+      },
+      {
+        "provider": "openai",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "provider": "xai",
+        "model": "grok-4.20-0309-non-reasoning"
+      }
+    ],
+    "temperature": 0.1,
+    "max_tokens": 1024
+  },
+  "retrieval": {
+    "similarity_threshold": 0.5,
+    "top_k": 5,
+    "dense_weight": 0.6,
+    "sparse_weight": 0.4
+  },
+  "reranking": {
+    "_note": "Verificado con llamadas reales el 2026-07-16 (ver PLAN.md Fase 3.7). El modelo de NVIDIA original propuesto en LexChiapas_Reranker_y_Cache_Semantico.md (nvidia/llama-3.2-nv-rerankqa-1b-v2) esta MUERTO (410 Gone, end-of-life 2026-05-18) -- el reemplazo confirmado es nvidia/llama-nemotron-rerank-vl-1b-v2 (acepta texto solo, sin necesitar imagen pese al nombre 'vl'). Si vuelve a fallar, re-listar /v1/models antes de asumir que el slug sigue vivo, mismo criterio que llm.fallback_order.",
+    "providers": {
+      "nvidia_nim": {
+        "url": "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-vl-1b-v2/reranking",
+        "model": "nvidia/llama-nemotron-rerank-vl-1b-v2"
+      },
+      "jina": {
+        "url": "https://api.jina.ai/v1/rerank",
+        "model": "jina-reranker-v2-base-multilingual"
+      }
+    },
+    "fallback_order": [
+      "nvidia_nim",
+      "jina"
+    ],
+    "timeout_seconds": 8
+  },
+  "semantic_cache": {
+    "_note": "Umbral MUY conservador (0.97, mucho mas estricto que el 0.5 de retrieval) a proposito: un falso positivo aqui devuelve la respuesta COMPLETA de una pregunta distinta, no solo un chunk de mas. Invalidacion por TTL simple (30 dias), no por documento re-ingerido -- alternativa mas simple para MVP, aceptada explicitamente en LexChiapas_Reranker_y_Cache_Semantico.md seccion 2.",
+    "enabled": true,
+    "similarity_threshold": 0.97,
+    "ttl_days": 30
+  },
+  "hyde": {
+    "_note": "Fase 6, LexChiapas_Evolucion_RAG_Progresiva.md seccion 1.2. Bandera para medir CON/SIN HyDE sin tocar codigo (ver app.rag.hyde y app.rag.rag_pipeline). Reemplaza SOLO el query_embedding usado para dense_search dentro de hybrid_search; el query_text usado para BM25/sparse_search sigue siendo la pregunta real siempre. Estado medido contra tests/test_rag_regression.py, ver PLAN.md Fase 6 para el resultado exacto que justifica este valor.",
+    "enabled": true
+  },
+  "agentic_rag": {
+    "_note": "Fase 7 Etapa 1, LexChiapas_Evolucion_RAG_Progresiva.md seccion FASE 2. Bandera para elegir entre app.rag.rag_pipeline.answer_question (pipeline lineal) y app.rag.agent_pipeline.answer_question_agentic (agente LangGraph: decidir -> buscar -> generar, sin loop todavia) sin tocar codigo -- ver app.bots.conversation_store.handle_turn para donde se lee esta bandera. Activado (2026-07-27) tras confirmar el fix de fuzzy_ilike_pattern contra las 24 preguntas completas (21 passed/2 xfailed_known/1 failed, el failed es una mejora real -- ver LexChiapas_Plan_Futuro.md Parte 1.A).",
+    "enabled": true,
+    "self_reflection": {
+      "_note": "Fase 7 Etapa 2. Solo tiene efecto si agentic_rag.enabled=true (self_reflection vive DENTRO del grafo del agente, no del pipeline lineal). Reintenta UNA vez (max_intentos=2 intentos totales, tope duro) reformulando la consulta de busqueda cuando el segundo gate de grounding (app.rag.grounding.answer_is_grounded_in_practice) degrada grounded=True a False DESPUES de generar con chunks que si pasaron el threshold real -- ver app.rag.agent_pipeline._should_retry_after_generar para la condicion completa y la evidencia real medida (PLAN.md Fase 7 Etapa 2) que justifica este valor. NUNCA reintenta cuando el gate primario ya fue False desde el intento 1 (medido: reintentar ahi con busqueda_general reintroduciria falsos positivos que la ruta busqueda_por_ley ya evita gratis en 2/3 casos documentados). MEDIDO (PLAN.md Fase 7 Etapa 2, 5 preguntas reales x 2 corridas): el reintento se disparo 1 de 5 veces, no cambio el resultado final (siguio correctamente grounded=False, sin alucinar) y costo ~2x el tiempo de esa pregunta (252s vs ~85-120s de un intento unico comparable). Sin mejora medida todavia -- se deja enabled=false por default hasta medir un caso real donde SI cambie un resultado, mismo criterio ya aplicado a reranker/HyDE en este proyecto (no asumir beneficio, medirlo).",
+      "enabled": false,
+      "max_intentos": 2
+    }
+  }
+}

@@ -1,0 +1,26 @@
+Generic single-database configuration.
+
+LexChiapas policy (see also the comment block at the top of env.py):
+
+- Before the "baseline schema real" revision, this project had NO Alembic
+  and NO migration scripts. All schema changes were manual
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`
+  run by hand against the real DB, with no record in git. The baseline
+  revision is a snapshot of that real schema as of the day Alembic was
+  adopted -- it intentionally contains no upgrade() operations (the tables
+  already exist) and should only ever be applied to an already-populated DB
+  via `alembic stamp head`, never `alembic upgrade head` from empty.
+
+- From now on, for any schema change:
+  1. Edit the SQLAlchemy model in app/models/*.py.
+  2. Run `alembic revision --autogenerate -m "short description"`.
+  3. Open the generated file in alembic/versions/ and READ it by hand.
+     Autogenerate does not always get pgvector's `vector` type, JSONB
+     server_default, or index/constraint naming right -- fix the script
+     before applying it, don't apply blindly.
+  4. Run `alembic upgrade head` against the real DB.
+  5. Commit the migration file together with the model change in the same
+     commit.
+
+- Never hand-edit the schema with a raw ALTER TABLE again outside of this
+  flow -- that is exactly the pattern Alembic was adopted to replace.

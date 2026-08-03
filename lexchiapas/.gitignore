@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+
+# Secretos / config local
+.env
+
+# Corpus crudo/procesado (grande, regenerable via ingestion/, no se versiona)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Celery Beat (estado de scheduling local, se regenera solo)
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# Scratch/debug local, nunca contenido real del proyecto
+scratch_block.txt
+
+# Editores locales
+.vscode/
+.idea/
