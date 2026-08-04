@@ -1,10 +1,9 @@
 # LexChiapas
 
 Chatbot legal (RAG) sobre leyes y reglamentos del Estado de Chiapas. Ver el
-brief completo y `CLAUDE.md` en la raiz del repositorio para arquitectura,
-fases y convenciones; el detalle fase por fase con hallazgos y verificacion
-real vive en `PLAN.md`. Este backend (FastAPI) sirve el bot de Telegram y la
-API que consume el frontend web (`../lexchiapas-web/`).
+README en la raiz del repositorio para el resumen general de arquitectura y
+stack. Este backend (FastAPI) sirve el bot de Telegram y la API que consume
+el frontend web (`../lexchiapas-web/`).
 
 ## Setup
 
@@ -64,27 +63,21 @@ todavia.
 
 ## Estado
 
-Fases 0-8 completas (andamiaje, RAG core con hybrid search + reranker real +
-cache semantico, guardrails de dos capas, memoria conversacional, bot de
-Telegram, expansion del corpus, ingesta/actualizacion automatica via Celery,
-RAG avanzado con query rewriting + HyDE, RAG agentico via LangGraph con
-self-reflection, y GraphRAG sobre `legal_relations` para preguntas de
-historial legal) -- ver `PLAN.md` para el detalle de cada fase, con
-hallazgos reales y verificacion contra la DB/API en produccion (no solo
-lectura de codigo).
+RAG core con hybrid search + reranker real + cache semantico, guardrails de
+varias capas, memoria conversacional, bot de Telegram, ingesta/actualizacion
+automatica via Celery, RAG avanzado con query rewriting + HyDE, RAG agentico
+via LangGraph con self-reflection, y GraphRAG sobre `legal_relations` para
+preguntas de historial legal -- todo verificado contra la DB/API real, no
+solo lectura de codigo.
 
-- **Corpus:** 32 leyes/codigos activos (`documents.is_active=true`) de las
-  146 catalogadas en el sitio del Congreso de Chiapas -- ver
-  `LexChiapas_Leyes_Pendientes_Congreso.md` para el catalogo completo de
-  pendientes y el criterio de priorizacion.
+- **Corpus:** ~32 leyes/codigos activos (`documents.is_active=true`) de las
+  146 catalogadas en el sitio del Congreso de Chiapas -- expandir cobertura
+  es trabajo de contenido en progreso, no una limitacion tecnica.
 - **`ai_config.json` "agentic_rag.enabled"** controla si `/api/chat/web` y el
   bot de Telegram usan el pipeline lineal (`app.rag.rag_pipeline`) o el
   agente LangGraph (`app.rag.agent_pipeline`, decidir -> buscar -> generar,
   con reintento acotado de self-reflection) -- intercambiable sin tocar
   codigo, ver `app.bots.conversation_store.handle_turn`.
 - **Golden dataset real** (24 preguntas, `app/evaluation/golden_dataset.py`,
-  corrido via `tests/test_rag_regression.py` contra la API real, sin mocks):
-  ultima corrida completa 23 passed / 1 xfail conocido.
-- Fase de deploy (Railway/Render + Vercel) y WhatsApp (via `BaseBot`, ver
-  abajo) quedan pendientes -- ver `PLAN.md` Fase 5/Fase D de
-  `WEB_FRONTEND_PLAN.md` para el detalle de lo ya preparado.
+  corrido via `tests/test_rag_regression.py` contra la API real, sin mocks).
+- Deploy 24/7 y WhatsApp (via `BaseBot`, ver abajo) quedan pendientes.

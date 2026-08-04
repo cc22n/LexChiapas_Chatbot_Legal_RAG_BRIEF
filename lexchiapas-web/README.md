@@ -2,8 +2,8 @@
 
 Frontend Next.js (App Router) para LexChiapas: chat legal publico + dashboard
 de metricas privado para el equipo. Consume la API FastAPI del backend
-(`../lexchiapas/`) -- ver `CLAUDE.md` (raiz del repo) y
-`WEB_FRONTEND_PLAN.md` para arquitectura y el detalle fase por fase.
+(`../lexchiapas/`) -- ver el README en la raiz del repositorio para el
+resumen general de arquitectura.
 
 ## Paginas
 
@@ -57,7 +57,5 @@ explicito en vez de inventar un placeholder.
 ## Deploy
 
 Preparado para Vercel (frontend) + Railway/Render (backend + Postgres con
-pgvector), pero no ejecutado todavia -- requiere credenciales del usuario en
-esos servicios. Ver `WEB_FRONTEND_PLAN.md` Fase D para la investigacion de
-plataforma ya hecha (Railway tiene template con pgvector preinstalado) y los
-pasos concretos que faltan.
+pgvector, Railway tiene un template con pgvector preinstalado), pero no
+ejecutado todavia -- requiere credenciales del usuario en esos servicios.

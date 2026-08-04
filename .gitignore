@@ -10,3 +10,28 @@ graphify-out
 # aprobados previamente, a punto de subirse a git sin este gitignore.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Documentos internos de planificacion/trabajo y config de Claude Code --
+# utiles para desarrollar, pero no para el repo publico (portafolio).
+# Siguen existiendo en local, solo se sacan del tracking de git (2026-08-04).
+CLAUDE.md
+lexchiapas-web/CLAUDE.md
+.claude/
+LexChiapas_Chatbot_Legal_RAG_BRIEF.md
+LexChiapas_Dashboard_Metricas.md
+LexChiapas_Evolucion_RAG_Progresiva.md
+LexChiapas_Formato_y_Mejoras_Futuras.md
+LexChiapas_Grounding_Gate_Estructurado.md
+LexChiapas_Guardrails.md
+LexChiapas_Leyes_Pendientes_Congreso.md
+LexChiapas_Memoria_Conversacional.md
+LexChiapas_Plan_Futuro.md
+LexChiapas_Refuerzos_Pendientes.md
+LexChiapas_Reranker_y_Cache_Semantico.md
+PLAN.md
+WEB_FRONTEND_PLAN.md
+pendientes.md
+
+# Instrucciones locales con rutas absolutas de esta maquina (C:\Users\coral\...),
+# el "Como correrlo" del README.md de la raiz ya cubre lo mismo con rutas relativas.
+COMO_CORRER_EL_PROYECTO.md
