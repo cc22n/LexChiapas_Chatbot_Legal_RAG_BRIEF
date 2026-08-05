@@ -71,7 +71,7 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
+          <ChatMessage key={message.id} message={message} sessionId={sessionId} />
         ))}
         {loading && (
           <div className="flex justify-start">

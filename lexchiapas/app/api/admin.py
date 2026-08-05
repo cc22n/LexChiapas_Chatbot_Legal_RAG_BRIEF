@@ -1,3 +1,5 @@
+import hmac
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -32,7 +34,12 @@ def admin_login(payload: AdminLoginRequest, request: Request, response: Response
     client_host = request.client.host if request.client else "unknown"
     enforce_rate_limit(f"admin_login:{client_host}")
 
-    if not settings.admin_api_key or payload.admin_api_key != settings.admin_api_key:
+    # BUG REAL (2026-08-04, revision de seguridad): comparacion con `!=` en
+    # vez de hmac.compare_digest -- mismo hallazgo ya corregido en
+    # admin_auth.py:require_admin, encontrado tambien aca al revisar CORS.
+    if not settings.admin_api_key or not hmac.compare_digest(
+        payload.admin_api_key, settings.admin_api_key
+    ):
         raise HTTPException(status_code=401, detail="invalid admin api key")
 
     response.set_cookie(

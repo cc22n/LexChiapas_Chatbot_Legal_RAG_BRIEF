@@ -55,8 +55,22 @@ def fuzzy_ilike_pattern(name: str) -> str:
     search_by_law, la ruta busqueda_por_ley del agente) y query_graph/
     get_article compartan el mismo criterio -- son el mismo problema real,
     no dos bugs distintos."""
-    tokens = [t for t in name.strip().split() if t]
+    tokens = [_escape_ilike_wildcards(t) for t in name.strip().split() if t]
     return "%" + "%".join(tokens) + "%"
+
+
+def _escape_ilike_wildcards(token: str) -> str:
+    """Escapa los comodines propios de ILIKE (%, _) y el caracter de escape
+    (\\) dentro de un token ANTES de que fuzzy_ilike_pattern lo una con sus
+    propios '%' de separador -- sin esto, un law_name con '%' o '_' (viene
+    del nodo "decidir" del LLM en la ruta agentica, o de texto libre del
+    usuario en /api/legal-relations?law=) ensancha el patron de forma no
+    intencionada (ej. "_" matchea cualquier caracter) y puede debilitar la
+    desambiguacion anti-alucinacion que get_article/query_graph implementan
+    con tanto cuidado. No es SQL injection (el patron completo sigue
+    viajando como bind param, nunca concatenado al texto de la query), es
+    escapado semantico del propio ILIKE."""
+    return token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _fuzzy_contains(haystack: str, needle: str) -> bool:

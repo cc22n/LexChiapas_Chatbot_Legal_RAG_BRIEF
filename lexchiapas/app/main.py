@@ -33,10 +33,22 @@ elif settings.environment == "development":
     allowed_origins = ["*"]
 
 if allowed_origins:
+    # BUG REAL (2026-08-04, revision de seguridad): allow_credentials=True
+    # incondicional, incluso cuando allowed_origins=["*"] (caso dev sin
+    # FRONTEND_ORIGIN configurado). Starlette, ante ["*"] + credentials=True,
+    # NO manda literalmente "*" -- refleja el Origin real de cada request
+    # (unico modo de cumplir la spec CORS, que prohibe combinar wildcard con
+    # credentials), asi que en la practica CUALQUIER origen podia hacer
+    # requests con cookies incluidas. Hoy el unico endpoint que de verdad usa
+    # cookies es /admin/* (via la cookie que emite POST /admin/login, ver
+    # admin.py) -- /api/chat/web y los webhooks no la necesitan. Regla
+    # aplicada: credentials solo se habilitan cuando el origen es especifico
+    # y conocido (FRONTEND_ORIGIN configurado), nunca en modo wildcard.
+    allow_credentials = allowed_origins != ["*"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
-        allow_credentials=True,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

@@ -1,4 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# BUG REAL (auditoria de seguridad, 2026-08-04): WebChatRequest.message no
+# tenia limite de longitud. El rate limit (10/min, ver app.api.rate_limit)
+# frena volumen de requests, pero no tamano por request -- un solo mensaje
+# gigante puede disparar hasta 5 llamadas LLM reales en la ruta agentica (ver
+# app.rag.agent_pipeline), inflando costo/latencia de un solo request.
+MAX_WEB_MESSAGE_LENGTH = 2000
 
 
 class ChatRequest(BaseModel):
@@ -76,7 +83,7 @@ class ChatResponse(BaseModel):
 
 class WebChatRequest(BaseModel):
     session_id: str
-    message: str
+    message: str = Field(max_length=MAX_WEB_MESSAGE_LENGTH)
 
 
 class WebChatResponse(ChatResponse):
@@ -86,6 +93,7 @@ class WebChatResponse(ChatResponse):
 
 class FeedbackCreate(BaseModel):
     message_id: int
+    session_id: str
     rating: str  # util/no_util
     user_comment: str | None = None
 

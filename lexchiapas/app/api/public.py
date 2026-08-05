@@ -7,10 +7,11 @@ criterio que agent_tools ya reusa hybrid_search/rerank en vez de duplicar
 retrieval.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api.rate_limit import enforce_rate_limit
 from app.database import get_db
 from app.rag.agent_tools import query_graph
 from app.rag.retriever import fuzzy_ilike_pattern
@@ -18,8 +19,20 @@ from app.rag.retriever import fuzzy_ilike_pattern
 router = APIRouter(prefix="/api", tags=["public"])
 
 
+def _enforce_public_rate_limit(request: Request) -> None:
+    # BUG REAL (auditoria de seguridad, 2026-08-04): estos endpoints son
+    # publicos y de solo lectura, pero a diferencia de POST /api/chat/web
+    # (que llama enforce_rate_limit) no tenian ningun freno -- permitian
+    # scraping/enumeracion del corpus o abuso de legal-relations (que hace
+    # varias queries por llamada) sin limite. Bucket propio "public:ip:<ip>"
+    # para no compartir contador con el chat ni con el login de admin.
+    client_ip = request.client.host if request.client else "unknown"
+    enforce_rate_limit(f"public:ip:{client_ip}")
+
+
 @router.get("/laws")
-def list_laws(db: Session = Depends(get_db)) -> list[dict]:
+def list_laws(request: Request, db: Session = Depends(get_db)) -> list[dict]:
+    _enforce_public_rate_limit(request)
     rows = db.execute(
         text("SELECT id, nombre FROM documents WHERE is_active = true ORDER BY nombre")
     ).mappings().all()
@@ -27,7 +40,7 @@ def list_laws(db: Session = Depends(get_db)) -> list[dict]:
 
 
 @router.get("/legal-relations")
-def legal_relations(law: str, db: Session = Depends(get_db)) -> dict:
+def legal_relations(law: str, request: Request, db: Session = Depends(get_db)) -> dict:
     """Explorador hub-and-spoke: para la ley pedida, devuelve la "otra ley"
     involucrada en cada relacion real (legal_relations, via query_graph),
     sin importar de que lado (from/to) aparece la ley consultada en la fila
@@ -39,6 +52,7 @@ def legal_relations(law: str, db: Session = Depends(get_db)) -> dict:
     comportamiento honesto "no hay datos" que query_graph ya documenta,
     no una falla.
     """
+    _enforce_public_rate_limit(request)
     pattern = fuzzy_ilike_pattern(law)
     canonical_row = db.execute(
         text("SELECT nombre FROM documents WHERE is_active = true AND nombre ILIKE :pattern LIMIT 1"),

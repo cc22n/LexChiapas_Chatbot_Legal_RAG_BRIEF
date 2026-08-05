@@ -41,11 +41,15 @@ export async function sendChatMessage(sessionId: string, message: string): Promi
   return res.json();
 }
 
-export async function sendFeedback(messageId: number, rating: FeedbackRating): Promise<void> {
+export async function sendFeedback(
+  messageId: number,
+  sessionId: string,
+  rating: FeedbackRating
+): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/feedback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message_id: messageId, rating }),
+    body: JSON.stringify({ message_id: messageId, session_id: sessionId, rating }),
   });
 
   if (!res.ok) {

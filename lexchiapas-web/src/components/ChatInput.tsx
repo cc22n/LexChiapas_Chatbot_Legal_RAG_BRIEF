@@ -7,11 +7,16 @@ interface ChatInputProps {
   disabled: boolean;
 }
 
+// Debe coincidir con MAX_WEB_MESSAGE_LENGTH en app/schemas/chat.py -- el
+// backend es la fuente de verdad (rechaza con 422 si se pasa), esto solo
+// evita que el usuario escriba un mensaje que el backend va a rechazar.
+const MAX_MESSAGE_LENGTH = 2000;
+
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [text, setText] = useState("");
 
   function submit() {
-    const trimmed = text.trim();
+    const trimmed = text.trim().slice(0, MAX_MESSAGE_LENGTH);
     if (!trimmed || disabled) return;
     onSend(trimmed);
     setText("");
@@ -41,6 +46,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         disabled={disabled}
         placeholder="Escribe tu pregunta sobre una ley de Chiapas..."
         rows={1}
+        maxLength={MAX_MESSAGE_LENGTH}
         className="flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       />
       <button

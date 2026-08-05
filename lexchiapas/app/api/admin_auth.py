@@ -4,6 +4,7 @@ import time
 
 from fastapi import Header, HTTPException, Request
 
+from app.api.rate_limit import enforce_rate_limit
 from app.config import get_settings
 
 SESSION_COOKIE_NAME = "lexchiapas_admin_session"
@@ -49,8 +50,22 @@ def require_admin(
     que ya lo use.
     """
     settings = get_settings()
-    if settings.admin_api_key and x_admin_api_key == settings.admin_api_key:
-        return
+    if x_admin_api_key is not None:
+        # BUG REAL (hallazgo de auditoria de seguridad, 2026-08-04): antes de
+        # este fix, cualquier endpoint con Depends(require_admin) aceptaba el
+        # header X-Admin-Api-Key sin rate limit, mientras que solo POST
+        # /admin/login lo tenia. El propio dashboard de Next.js
+        # (adminApi.ts:verifyAdminApiKey) valida la key pegandole al header
+        # contra /admin/metrics/usage en vez de /admin/login, lo que dejaba
+        # fuerza bruta ilimitada contra la credencial maestra. Se reusa el
+        # mismo bucket "admin_login:<ip>" que /admin/login para que ambos
+        # caminos de intento compartan un solo contador por IP.
+        client_host = request.client.host if request.client else "unknown"
+        enforce_rate_limit(f"admin_login:{client_host}")
+        if settings.admin_api_key and hmac.compare_digest(
+            x_admin_api_key, settings.admin_api_key
+        ):
+            return
 
     session_cookie = request.cookies.get(SESSION_COOKIE_NAME)
     if session_cookie and _session_cookie_is_valid(session_cookie):

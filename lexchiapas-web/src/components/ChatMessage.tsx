@@ -9,19 +9,20 @@ import { TraceAccordion } from "./TraceAccordion";
 
 interface ChatMessageProps {
   message: ChatMessageData;
+  sessionId: string | null;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, sessionId }: ChatMessageProps) {
   const [rating, setRating] = useState<FeedbackRating | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const isUser = message.role === "user";
 
   async function handleFeedback(newRating: FeedbackRating) {
-    if (rating || message.messageId === undefined) return;
+    if (rating || message.messageId === undefined || !sessionId) return;
     setRating(newRating);
     setFeedbackError(null);
     try {
-      await sendFeedback(message.messageId, newRating);
+      await sendFeedback(message.messageId, sessionId, newRating);
     } catch (err) {
       setRating(null);
       setFeedbackError(err instanceof ApiError ? err.message : "No se pudo enviar tu feedback.");

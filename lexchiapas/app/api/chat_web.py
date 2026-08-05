@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.rate_limit import enforce_rate_limit
@@ -13,11 +13,16 @@ PLATFORM = "web"
 
 
 @router.post("/chat/web", response_model=WebChatResponse)
-def chat_web(payload: WebChatRequest, db: Session = Depends(get_db)) -> WebChatResponse:
+def chat_web(payload: WebChatRequest, request: Request, db: Session = Depends(get_db)) -> WebChatResponse:
     if not payload.message.strip():
         raise HTTPException(status_code=422, detail="message no puede estar vacio")
 
+    # Dos buckets independientes: session_id (client-supplied, spoofeable
+    # mandando uno nuevo por request) y la IP real de la conexion TCP (no
+    # spoofeable sin controlar la red) -- ver docstring de enforce_rate_limit.
+    client_ip = request.client.host if request.client else "unknown"
     enforce_rate_limit(payload.session_id)
+    enforce_rate_limit(f"ip:{client_ip}")
 
     response, assistant_message = handle_turn(
         db, PLATFORM, payload.session_id, payload.session_id, payload.message
