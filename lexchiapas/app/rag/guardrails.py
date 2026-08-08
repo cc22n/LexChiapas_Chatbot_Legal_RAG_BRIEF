@@ -3,7 +3,7 @@ import re
 from functools import lru_cache
 
 from app.llm.providers import embed_text
-from app.rag.chunker import _strip_accents
+from app.rag.text_utils import strip_accents
 
 logger = logging.getLogger("lexchiapas.guardrails")
 
@@ -51,7 +51,7 @@ IN_SCOPE_EXAMPLES = [
 ]
 
 # Palabras clave legales genericas (sin acentos, se comparan contra texto ya
-# normalizado con _strip_accents). No requieren mencionar "Chiapas"
+# normalizado con strip_accents). No requieren mencionar "Chiapas"
 # explicitamente porque una pregunta de seguimiento dentro de una
 # conversacion legal legitima (ej. "Y las multas?") normalmente no repite el
 # estado en cada turno -- ver Fase 2.6 (memoria conversacional) para el
@@ -80,6 +80,73 @@ OUT_OF_SCOPE_MESSAGE = (
     "Preguntame sobre algun tema legal y con gusto te ayudo."
 )
 
+# Saludos/agradecimientos/despedidas puros (sin contenido legal real) --
+# hallazgo real de UX: antes, un "hola" o "buenas tardes" caia en el mismo
+# camino que classify_intent() usa para rechazar preguntas fuera de tema, y
+# el usuario recibia OUT_OF_SCOPE_MESSAGE (un rechazo, no un saludo) como
+# primera impresion del bot. GREETING_RE/THANKS_RE/FAREWELL_RE estan
+# ANCLADOS (^...$ sobre el texto completo YA normalizado) a proposito: una
+# pregunta real que empiece con "Hola, que dice la ley sobre..." NO debe
+# entrar aca, tiene que seguir al pipeline normal (classify_intent la
+# reconoce por sus propias palabras clave/similitud). Esto es intencional
+# small talk, no un reemplazo de Capa 1 de guardrails.
+GREETING_RESPONSE = (
+    "Hola, soy LexChiapas. Respondo preguntas sobre leyes y reglamentos del "
+    "Estado de Chiapas, citando la ley y el articulo correspondiente. No doy "
+    "asesoria legal profesional -- para tu caso especifico, consulta a un "
+    "abogado.\n\n"
+    "Puedo ayudarte con temas como derecho penal, civil, laboral, "
+    "administrativo, ambiental, derechos humanos, familia, y mas -- "
+    "preguntame lo que necesites saber sobre las leyes de Chiapas."
+)
+
+THANKS_RESPONSE = "De nada. Si tienes otra pregunta sobre leyes o reglamentos de Chiapas, aqui estoy."
+
+FAREWELL_RESPONSE = "Hasta luego. Vuelve cuando tengas otra pregunta sobre las leyes de Chiapas."
+
+# buen[oa]s? cubre bueno/buena/buenos/buenas (incluye el typo comun "buena
+# tardes" en vez de "buenas tardes") con dias/tardes/noches opcional --
+# tambien matchea "buenas"/"buenos" solos, saludo informal valido por si
+# mismo. hola+/ol+a toleran alargamientos informales ("holaa", "olaa").
+_GREETING_RE = re.compile(
+    r"^(hola+|ol+a|hey|hi|hello|saludos|"
+    r"buen[oa]s?(\s*(dias?|tardes?|noches?))?|"
+    r"que\s*tal|como\s*(estas?|va|andas?))$"
+)
+_THANKS_RE = re.compile(r"^(muchas\s*gracias|mil\s*gracias|gracias|thank\s*you|thanks)$")
+_FAREWELL_RE = re.compile(r"^(adios|hasta\s*luego|hasta\s*pronto|nos\s*vemos|bye|chau)$")
+
+_SMALLTALK_PUNCTUATION_RE = re.compile(r"[!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~¡¿]")
+
+
+def _normalize_smalltalk(text: str) -> str:
+    normalized = strip_accents(text).lower()
+    normalized = _SMALLTALK_PUNCTUATION_RE.sub(" ", normalized)
+    return " ".join(normalized.split())
+
+
+def detect_smalltalk_response(text: str) -> str | None:
+    """Devuelve la respuesta canonica de saludo/agradecimiento/despedida si
+    `text` es EXACTAMENTE eso (nada de contenido legal real), o None si no
+    aplica -- en ese caso el llamador sigue con el pipeline normal
+    (classify_intent, etc.) sin cambios.
+
+    A diferencia de Capa 1 (classify_intent), que solo se evalua en el
+    PRIMER turno de una conversacion (ver rag_pipeline.answer_question), esto
+    se evalua en CUALQUIER turno: un "gracias" al cierre de una conversacion
+    legal legitima debe reconocerse igual que un "hola" de apertura.
+    """
+    normalized = _normalize_smalltalk(text)
+    if not normalized:
+        return None
+    if _GREETING_RE.match(normalized):
+        return GREETING_RESPONSE
+    if _THANKS_RE.match(normalized):
+        return THANKS_RESPONSE
+    if _FAREWELL_RE.match(normalized):
+        return FAREWELL_RESPONSE
+    return None
+
 # Frases comunes de intento de jailbreak. No se usan para bloquear (el
 # documento fuente es explicito: "no es critico bloquearlos agresivamente"),
 # solo para loggear y poder revisar el uso despues.
@@ -103,7 +170,7 @@ def detect_jailbreak_attempt(text: str) -> bool:
 
 
 def _contains_legal_keyword(text: str) -> bool:
-    return bool(_LEGAL_KEYWORD_RE.search(_strip_accents(text)))
+    return bool(_LEGAL_KEYWORD_RE.search(strip_accents(text)))
 
 
 @lru_cache

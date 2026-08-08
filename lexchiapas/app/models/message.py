@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -9,6 +9,12 @@ from app.database import Base
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (
+        # Dominio real confirmado en app.bots.conversation_store (unico lugar
+        # que setea role) y contra la DB real (auditoria 2026-08-06, sin
+        # valores fuera de este dominio).
+        CheckConstraint("role IN ('user', 'assistant')", name="ck_messages_role"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"))

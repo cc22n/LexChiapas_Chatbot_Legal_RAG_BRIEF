@@ -28,8 +28,22 @@ def _get_redis_client() -> redis.Redis:
         # HELLO" -- sin este parametro, CUALQUIER operacion fallaria y el
         # cache caeria siempre a Postgres en silencio (funcional pero sin
         # el beneficio de performance que Redis deberia dar).
+        #
+        # socket_timeout/socket_connect_timeout explicitos (auditoria de
+        # salud del backend, 2026-08-06, hallazgo M6): el try/except
+        # generico que envuelve cada uso de este cliente (ver abajo)
+        # protege contra un fallo RECHAZADO de Redis, pero no contra una
+        # conexion que se queda COLGADA (sin timeout, el socket esperaria
+        # indefinidamente y el except nunca se dispararia porque la llamada
+        # nunca retorna) -- hoy Redis corre local asi que el riesgo es bajo
+        # en la practica, pero si se despliega con Redis remoto esto podria
+        # colgar el request completo.
         _redis_client = redis.from_url(
-            settings.redis_url, decode_responses=True, protocol=2
+            settings.redis_url,
+            decode_responses=True,
+            protocol=2,
+            socket_timeout=3,
+            socket_connect_timeout=3,
         )
     return _redis_client
 

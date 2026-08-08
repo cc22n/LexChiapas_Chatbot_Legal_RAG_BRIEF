@@ -14,16 +14,19 @@ const RADIUS = 170;
 const CENTER_R = 28;
 const NODE_R = 8;
 
-// relation_type es un enum chico y fijo (reforma/deroga/remite_a/deriva_de/
-// modifica, ver app/models/legal_relation.py) -- mapeo deterministico a la
-// paleta categorica del skill dataviz, mismo criterio que BarChartHorizontal
-// con colorVar por dato.
+// relation_type es un enum chico y fijo -- CORREGIDO (auditoria de contenido
+// visual, 2026-08-07): el CHECK constraint real (ck_legal_relations_relation_type,
+// app/models/legal_relation.py) solo permite deroga/reforma/adiciona.
+// remite_a/deriva_de/modifica del mapeo anterior NUNCA se producen (el
+// unico productor de estos valores es ingestion/extract_legal_relations.py,
+// que tampoco los genera) -- caian siempre al fallback --series-6, el mismo
+// tono de alarma que semanticamente deberia ser exclusivo de "deroga".
+// Mapeo deterministico a la paleta categorica del skill dataviz, mismo
+// criterio que BarChartHorizontal con colorVar por dato.
 const RELATION_COLORS: Record<string, string> = {
   reforma: "--series-1",
-  deroga: "--series-4",
-  remite_a: "--series-2",
-  deriva_de: "--series-3",
-  modifica: "--series-5",
+  deroga: "--series-6",
+  adiciona: "--series-4",
 };
 
 function colorFor(relationType: string): string {

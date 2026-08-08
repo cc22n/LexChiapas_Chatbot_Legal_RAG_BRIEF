@@ -1,3 +1,4 @@
+from app.config import get_ai_config
 from app.llm.router import generate_with_fallback
 from app.rag.retriever import RetrievedChunk
 
@@ -11,7 +12,13 @@ DISCLAIMER = (
     "\n\nEste mensaje es informativo y no sustituye la asesoria de un abogado."
 )
 
-SYSTEM_PROMPT = (
+# Bloque base compartido por las 4 combinaciones formato x estilo (ver mas
+# abajo) -- alcance, anti-inyeccion, y la regla de contenido (grounding +
+# cita obligatoria) nunca cambian, sin importar la bandera de tablas
+# comparativas ni el switch tecnico/cotidiano: ambos estilos citan ley y
+# articulo igual, solo cambia el REGISTRO en que se explica, nunca la
+# obligacion de fundamentar.
+_PROMPT_BASE = (
     "Eres LexChiapas, un asistente que explica leyes y reglamentos del Estado "
     "de Chiapas, Mexico. "
     "REGLAS DE ALCANCE: solo respondes preguntas sobre leyes, reglamentos y "
@@ -33,8 +40,46 @@ SYSTEM_PROMPT = (
     "legales proporcionados. No inventes articulos, leyes ni contenido que no "
     "este en los fragmentos. Si los fragmentos no son suficientes para "
     "responder, dilo explicitamente en vez de adivinar. Cita siempre la ley y "
-    "el numero de articulo. Explica en lenguaje simple para alguien sin "
-    "formacion legal. "
+    "el numero de articulo. "
+)
+
+# Switch tecnico/cotidiano (idea evaluada en conversacion con Gemini,
+# 2026-08-10 -- a diferencia de la reescritura multi-query de la misma
+# conversacion, evaluada y RECHAZADA con evidencia real, ver
+# LexChiapas_Plan_Futuro.md Seccion B, esta parte SI se implementa: no toca
+# retrieval/threshold/grounding en absoluto, solo el REGISTRO de la
+# respuesta final una vez que los chunks ya se recuperaron -- bajo riesgo,
+# ambos estilos heredan _PROMPT_BASE completo (misma obligacion de cita y
+# de admitir honestamente cuando no hay fundamento).
+#
+# Default (bandera apagada, technical=False): mismo comportamiento historico
+# exacto -- antes vivia como una frase suelta dentro de _PROMPT_BASE
+# ("Explica en lenguaje simple..."), movida aca sin cambiar su efecto.
+_ESTILO_COTIDIANO = (
+    "REGISTRO: explica en lenguaje simple, directo y cotidiano, para alguien "
+    "sin formacion legal. Evita tecnicismos juridicos innecesarios; si "
+    "tienes que usar uno (ej. un termino que solo existe en la ley), "
+    "explicalo brevemente en la misma oracion. Si ayuda a que se entienda, "
+    "usa un ejemplo practico corto. Menciona la ley y el articulo de forma "
+    "natural dentro del texto, no como una cita academica aislada."
+)
+
+# Bandera encendida (technical=True): lenguaje juridico formal, pensado para
+# quien ya tiene formacion legal (abogados, estudiantes de derecho) y
+# prefiere precision terminologica sobre explicacion accesible.
+_ESTILO_TECNICO = (
+    "REGISTRO: usa lenguaje juridico formal y preciso -- terminologia "
+    "doctrinal y legislativa exacta, sin simplificar ni parafrasear "
+    "conceptos tecnicos. Si la pregunta lo amerita, estructura la respuesta "
+    "en fundamentacion legal (articulos aplicables) y consecuencia juridica. "
+    "No agregues explicaciones para publico general ni analogias -- se "
+    "asume que quien pregunta ya conoce el vocabulario juridico basico."
+)
+
+# Default: sin la bandera visual_answers.comparison_tables (ver _system_prompt
+# abajo), identico al comportamiento historico -- texto plano puro, pensado
+# originalmente para Telegram (Fase 3.5) pero aplicado a los dos canales.
+_FORMATO_TEXTO_PLANO = (
     "REGLAS DE FORMATO: responde en texto plano. No uses asteriscos, "
     "negritas ni cursivas de Markdown, ni encabezados con #, ni listas con "
     "guiones o numeros seguidos de punto -- describe todo en oraciones "
@@ -43,6 +88,65 @@ SYSTEM_PROMPT = (
     "aviso automaticamente despues de tu respuesta, y si tu tambien lo "
     "agregas queda duplicado."
 )
+
+# Con la bandera encendida: mismo texto plano de base, con UNA excepcion
+# nominal para tablas comparativas (hallazgo real de UX, 2026-08-07 -- el
+# usuario pidio contenido visual "para mejor entendimiento"; una tabla es de
+# bajo riesgo de alucinacion porque es solo una reorganizacion de texto que
+# ya esta grounded en los fragmentos, a diferencia de un diagrama/mapa
+# conceptual que afirmaria relaciones NUEVAS sin mecanismo de verificacion).
+# La prohibicion de markdown NO se relajo en general -- sigue sin bold/
+# italic/headers/listas, solo se abre la tabla.
+_FORMATO_CON_TABLAS = (
+    "REGLAS DE FORMATO: responde en texto plano -- sin asteriscos, negritas "
+    "ni cursivas de Markdown, sin encabezados con #, sin listas con guiones "
+    "o numeros seguidos de punto. UNICA EXCEPCION: si la pregunta compara "
+    "dos o mas cosas (leyes distintas, articulos distintos, sanciones, "
+    "requisitos, plazos, procedimientos), puedes incluir UNA tabla en "
+    "formato markdown GFM (filas con '|', linea separadora '|---|---|'), "
+    "maximo 4 columnas y 8 filas. Si la pregunta NO es una comparacion, no "
+    "uses tabla -- nunca uses tabla para una sola ley o un solo articulo. "
+    "En la tabla: la primera columna debe identificar la ley y el articulo "
+    "de cada fila; cada celda debe contener UNICAMENTE informacion presente "
+    "en los fragmentos -- si un dato no aparece ahi, escribe 'No "
+    "especificado' en esa celda, nunca lo deduzcas, completes por analogia "
+    "ni lo dejes plausible. Antes o despues de la tabla, explica en una o "
+    "dos oraciones normales lo que la tabla muestra, citando ley y articulo "
+    "-- la tabla nunca reemplaza la cita. No uses bloques de codigo ni "
+    "sintaxis de diagramas (mermaid, graphviz), ni HTML. No incluyas tu "
+    "propio aviso, disclaimer o nota final de que esto no sustituye "
+    "asesoria legal profesional: el sistema ya agrega ese aviso "
+    "automaticamente despues de tu respuesta, y si tu tambien lo agregas "
+    "queda duplicado."
+)
+
+# Simbolo publico del modulo (referenciado por nombre en comentarios de
+# app.rag.grounding) -- equivale al comportamiento default (banderas
+# apagadas, estilo cotidiano). build_prompt usa _system_prompt(), no esta
+# constante, para poder elegir la variante en caliente segun ai_config.json
+# y el switch technical por-request.
+SYSTEM_PROMPT = _PROMPT_BASE + _FORMATO_TEXTO_PLANO + _ESTILO_COTIDIANO
+
+
+def _system_prompt(technical: bool = False) -> str:
+    # Formato (tablas comparativas): bandera Fase 1 (contenido visual, ver
+    # PLAN.md), config-driven global -- mismo patron que hyde/agentic_rag,
+    # default False en codigo aunque el JSON diga true, leida en caliente en
+    # cada llamada (get_ai_config() esta @lru_cache, no hay hot-reload real
+    # hasta reiniciar el proceso, pero no hace falta releer el archivo aca,
+    # solo no cachear la eleccion de prompt en un global).
+    comparison_tables_enabled = (
+        get_ai_config().get("visual_answers", {}).get("comparison_tables", {}).get("enabled", False)
+    )
+    formato = _FORMATO_CON_TABLAS if comparison_tables_enabled else _FORMATO_TEXTO_PLANO
+
+    # Estilo (tecnico/cotidiano): a diferencia de la bandera de arriba, esta
+    # NO es config global -- es un parametro POR-PREGUNTA que el usuario
+    # elige en la UI (ver WebChatRequest.technical), nunca leido de
+    # ai_config.json.
+    estilo = _ESTILO_TECNICO if technical else _ESTILO_COTIDIANO
+
+    return _PROMPT_BASE + formato + estilo
 
 
 def _strip_trailing_disclaimer(content: str) -> str:
@@ -70,7 +174,10 @@ def _strip_trailing_disclaimer(content: str) -> str:
 
 
 def build_prompt(
-    question: str, chunks: list[RetrievedChunk], conversation_history: list[dict] | None = None
+    question: str,
+    chunks: list[RetrievedChunk],
+    conversation_history: list[dict] | None = None,
+    technical: bool = False,
 ) -> list[dict]:
     """conversation_history (Fase 2.6): turnos previos de la MISMA
     conversacion, formato [{"role": "user"|"assistant", "content": str}, ...]
@@ -82,6 +189,10 @@ def build_prompt(
     turno. Los turnos assistant SI se limpian del DISCLAIMER fijo antes de
     reenviarse (ver _strip_trailing_disclaimer) -- el disclaimer real que ve
     el usuario no cambia, solo lo que el LLM ve como "lo que dije antes".
+
+    technical: switch de registro (ver _ESTILO_TECNICO/_ESTILO_COTIDIANO) --
+    NO afecta retrieval ni los chunks ya recuperados, solo la instruccion de
+    como redactar la respuesta a partir de ellos.
     """
     context = "\n\n".join(
         f"[{c.document_nombre}, Articulo {c.articulo_numero}]\n{c.content}" for c in chunks
@@ -95,7 +206,7 @@ def build_prompt(
         f"Fragmentos legales recuperados:\n<<<FRAGMENTOS>>>\n{context}\n<<<FIN_FRAGMENTOS>>>"
         f"\n\nPregunta del usuario: {question}"
     )
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": _system_prompt(technical)}]
     if conversation_history:
         messages.extend(
             {**turn, "content": _strip_trailing_disclaimer(turn["content"])}
@@ -111,14 +222,18 @@ def generate_answer(
     question: str,
     chunks: list[RetrievedChunk],
     conversation_history: list[dict] | None = None,
+    technical: bool = False,
 ) -> tuple[str, str | None, int | None, int | None]:
     """Devuelve (respuesta_con_disclaimer, modelo_usado, prompt_tokens,
     completion_tokens). modelo_usado y los tokens son None cuando no hubo
     chunks y se responde sin llamar al LLM (anti-alucinacion).
+
+    technical: ver build_prompt/_ESTILO_TECNICO -- default False (cotidiano)
+    preserva el comportamiento historico exacto.
     """
     if not chunks:
         return NO_ENCONTRADO, None, None, None
 
-    messages = build_prompt(question, chunks, conversation_history=conversation_history)
+    messages = build_prompt(question, chunks, conversation_history=conversation_history, technical=technical)
     answer, model_used, prompt_tokens, completion_tokens = generate_with_fallback(messages)
     return answer + DISCLAIMER, model_used, prompt_tokens, completion_tokens

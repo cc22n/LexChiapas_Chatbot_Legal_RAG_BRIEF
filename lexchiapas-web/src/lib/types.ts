@@ -6,11 +6,12 @@ export interface RetrievedChunk {
   content: string;
 }
 
-// Espejo de un campo que todavia NO existe en el backend (pedido en
-// WEB_FRONTEND_PLAN.md Fase F -- app.schemas.chat.ChatResponse.agent_trace).
-// Hoy el pipeline agentico (Fase 7/8, PLAN.md) calcula esto en AgentState
-// pero answer_question_agentic lo descarta -- este tipo documenta el shape
-// propuesto para cuando el backend lo agregue.
+// Espejo de app.schemas.chat.ChatResponse.agent_trace, que YA existe y se
+// puebla en el backend (app/rag/agent_pipeline.py, persistido en
+// app/bots/conversation_store.py) -- corregido, el comentario anterior decia
+// que todavia no existia (auditoria de contenido visual, 2026-08-07). Solo
+// viene poblado cuando el pipeline agentico corrio (ai_config.json
+// agentic_rag.enabled); None/null en el pipeline lineal.
 export interface AgentTrace {
   route: "busqueda_general" | "busqueda_por_ley" | "articulo_especifico" | "historial_ley" | "ninguna";
   law_name: string | null;
@@ -29,10 +30,7 @@ export interface WebChatResponse {
   completion_tokens: number | null;
   message_id: number;
   out_of_scope: boolean;
-  // No existe todavia en el backend -- ver AgentTrace arriba. Siempre
-  // undefined hasta que WEB_FRONTEND_PLAN.md Fase F se implemente del lado
-  // backend.
-  agent_trace?: AgentTrace | null;
+  agent_trace: AgentTrace | null;
 }
 
 export type FeedbackRating = "util" | "no_util";

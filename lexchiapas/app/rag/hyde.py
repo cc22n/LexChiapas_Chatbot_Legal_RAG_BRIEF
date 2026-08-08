@@ -47,7 +47,7 @@ def generate_hypothetical_answer(question: str) -> str | None:
         {"role": "user", "content": question},
     ]
     try:
-        text, model_used, _, _ = generate_with_fallback(messages, temperature=0.3)
+        text, model_used, _, _ = generate_with_fallback(messages, temperature=0.3, fast=True)
         text = (text or "").strip()
         if not text:
             return None

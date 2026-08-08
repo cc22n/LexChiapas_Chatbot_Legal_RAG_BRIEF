@@ -1,4 +1,11 @@
-from app.rag.guardrails import _contains_legal_keyword, detect_jailbreak_attempt
+from app.rag.guardrails import (
+    FAREWELL_RESPONSE,
+    GREETING_RESPONSE,
+    THANKS_RESPONSE,
+    _contains_legal_keyword,
+    detect_jailbreak_attempt,
+    detect_smalltalk_response,
+)
 
 # Estos tests cubren solo la parte deterministica de Capa 1 (keywords y
 # patrones de jailbreak, sin llamadas a la API de NVIDIA). La parte de
@@ -46,3 +53,37 @@ def test_jailbreak_detection_catches_common_patterns():
 def test_jailbreak_detection_ignores_normal_questions():
     assert not detect_jailbreak_attempt("Que dice la ley de Chiapas sobre el matrimonio?")
     assert not detect_jailbreak_attempt("Los menores de edad estan incluidos en la amnistia?")
+
+
+def test_smalltalk_detects_common_greetings():
+    assert detect_smalltalk_response("hola") == GREETING_RESPONSE
+    assert detect_smalltalk_response("Hola!") == GREETING_RESPONSE
+    assert detect_smalltalk_response("buenas tardes") == GREETING_RESPONSE
+    # Typo real mencionado por el usuario: "buena" en vez de "buenas".
+    assert detect_smalltalk_response("buena tardes") == GREETING_RESPONSE
+    assert detect_smalltalk_response("Buenos dias") == GREETING_RESPONSE
+    assert detect_smalltalk_response("buenas") == GREETING_RESPONSE
+    assert detect_smalltalk_response("que tal") == GREETING_RESPONSE
+    assert detect_smalltalk_response("como estas?") == GREETING_RESPONSE
+    assert detect_smalltalk_response("hey") == GREETING_RESPONSE
+
+
+def test_smalltalk_detects_thanks_and_farewells():
+    assert detect_smalltalk_response("gracias") == THANKS_RESPONSE
+    assert detect_smalltalk_response("muchas gracias!") == THANKS_RESPONSE
+    assert detect_smalltalk_response("adios") == FAREWELL_RESPONSE
+    assert detect_smalltalk_response("hasta luego") == FAREWELL_RESPONSE
+
+
+def test_smalltalk_ignores_real_legal_questions():
+    # Anclado a proposito: una pregunta real que EMPIECE con un saludo no
+    # debe entrar aca, tiene que seguir al pipeline normal.
+    assert detect_smalltalk_response("Que dice la ley de Chiapas sobre el matrimonio?") is None
+    assert detect_smalltalk_response("Hola, que dice la ley sobre las multas de transito?") is None
+    assert detect_smalltalk_response("Y las multas?") is None
+
+
+def test_smalltalk_ignores_unrelated_text():
+    assert detect_smalltalk_response("Que clima hace hoy?") is None
+    assert detect_smalltalk_response("") is None
+    assert detect_smalltalk_response("   ") is None

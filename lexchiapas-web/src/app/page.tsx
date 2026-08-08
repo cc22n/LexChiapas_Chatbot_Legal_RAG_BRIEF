@@ -19,6 +19,13 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessageData[]>([WELCOME_MESSAGE]);
   const [loading, setLoading] = useState(false);
+  // Switch de registro (idea evaluada en conversacion con Gemini,
+  // 2026-08-10): "cotidiano" es el comportamiento historico por defecto,
+  // "tecnico" pide lenguaje juridico formal -- ver
+  // app.rag.generator._ESTILO_TECNICO/_ESTILO_COTIDIANO en el backend. Vive
+  // en memoria (no localStorage): es una preferencia de ESTA sesion de
+  // chat, no una configuracion persistente de la cuenta.
+  const [technical, setTechnical] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +46,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const response = await sendChatMessage(sessionId, text);
+      const response = await sendChatMessage(sessionId, text, technical);
       setMessages((prev) => [
         ...prev,
         {
@@ -81,6 +88,41 @@ export default function Home() {
           </div>
         )}
         <div ref={bottomRef} />
+      </div>
+      <div className="flex items-center justify-center gap-2 px-4 pb-1 text-xs">
+        <span className="text-zinc-500 dark:text-zinc-400">Respuestas:</span>
+        <div
+          role="radiogroup"
+          aria-label="Estilo de respuesta"
+          className="inline-flex overflow-hidden rounded-full border border-zinc-300 dark:border-zinc-700"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!technical}
+            onClick={() => setTechnical(false)}
+            className={`px-3 py-1 transition ${
+              !technical
+                ? "bg-emerald-600 text-white"
+                : "bg-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            Cotidiano
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={technical}
+            onClick={() => setTechnical(true)}
+            className={`px-3 py-1 transition ${
+              technical
+                ? "bg-emerald-600 text-white"
+                : "bg-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            Técnico
+          </button>
+        </div>
       </div>
       <ChatInput onSend={handleSend} disabled={loading || !sessionId} />
       <p className="px-4 pb-3 text-center text-xs text-zinc-400 dark:text-zinc-600">

@@ -178,10 +178,13 @@ def answer_is_grounded_in_practice(
     """
     messages = _build_messages(question, answer_text, retrieved_chunks or [])
     try:
-        verdict_raw, model_used, _, _ = generate_with_fallback(messages, temperature=0.0)
+        verdict_raw, model_used, _, _ = generate_with_fallback(messages, temperature=0.0, fast=True)
         verdict = (verdict_raw or "").strip().upper()
         logger.info("grounding classifier (%s) verdict=%r para pregunta=%r", model_used, verdict, question)
         return verdict.startswith("SI"), model_used
     except AllModelsFailedError as exc:
         logger.warning("grounding classifier: todos los proveedores fallaron, se asume grounded=True: %s", exc)
+        return True, None
+    except Exception as exc:  # noqa: BLE001 - fallback silencioso, ver docstring
+        logger.warning("grounding classifier fallo (error inesperado), se asume grounded=True: %s", exc)
         return True, None

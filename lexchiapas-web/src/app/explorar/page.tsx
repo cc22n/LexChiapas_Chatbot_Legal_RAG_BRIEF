@@ -12,11 +12,9 @@ import { ChartCard } from "@/components/charts/ChartCard";
 import { EmptyState } from "@/components/charts/EmptyState";
 import { RelationGraph } from "@/components/RelationGraph";
 
-// GET /api/laws y GET /api/legal-relations no existen todavia en el backend
-// (ver WEB_FRONTEND_PLAN.md Fase G) -- esta pagina esta completa y lista,
-// pero hoy siempre muestra el mensaje de "pendiente backend" porque getLaws()
-// siempre falla con 404. Se activa sola cuando el backend implemente esos
-// endpoints, sin tocar este archivo.
+// GET /api/laws y GET /api/legal-relations YA existen en el backend
+// (app/api/public.py, registrado en app/main.py) -- corregido, el comentario
+// anterior estaba desactualizado (auditoria de contenido visual, 2026-08-07).
 export default function ExplorarPage() {
   const [laws, setLaws] = useState<Law[] | null>(null);
   const [lawsError, setLawsError] = useState<string | null>(null);
@@ -30,7 +28,7 @@ export default function ExplorarPage() {
       .catch((err) => {
         setLawsError(
           err instanceof ApiError
-            ? `El backend todavia no expone GET /api/laws (${err.status}).`
+            ? `No se pudo cargar la lista de leyes (${err.status}).`
             : "No se pudo conectar con el backend."
         );
       });
@@ -70,7 +68,7 @@ export default function ExplorarPage() {
         </header>
 
         {lawsError ? (
-          <EmptyState message={`Explorador pendiente -- ${lawsError} El grafo legal (2004 relaciones reales, ver PLAN.md Fase 8) ya existe en la base de datos, solo falta que el backend lo exponga publicamente.`} />
+          <EmptyState message={lawsError} />
         ) : !laws ? (
           <p className="text-sm text-[var(--text-muted)]">Cargando leyes...</p>
         ) : (
@@ -93,7 +91,7 @@ export default function ExplorarPage() {
             {relations && (
               <ChartCard
                 title={relations.law}
-                subtitle="Relaciones registradas (reforma, deroga, remite_a, deriva_de, modifica)"
+                subtitle="Relaciones registradas (reforma, deroga, adiciona)"
                 tableColumns={[
                   { key: "relation_type", label: "Tipo" },
                   { key: "to_law_name", label: "Ley relacionada" },

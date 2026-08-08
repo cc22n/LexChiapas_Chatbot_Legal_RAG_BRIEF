@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import HTTPException
 from telegram import Bot
 
@@ -8,13 +10,14 @@ from app.bots.output_formatter import clean_markdown
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Document
+from app.rag.guardrails import GREETING_RESPONSE
 
-WELCOME_MESSAGE = (
-    "Hola, soy LexChiapas. Respondo preguntas sobre leyes y reglamentos del "
-    "Estado de Chiapas citando la fuente. No doy asesoria legal profesional: "
-    "para tu caso especifico, consulta a un abogado.\n\n"
-    "Usa /ayuda para ver los comandos disponibles."
-)
+# Reusa GREETING_RESPONSE (app.rag.guardrails) en vez de tener su propio
+# texto -- antes este mensaje y la respuesta que recibia un "hola" escrito a
+# mano dentro del chat podian divergir con el tiempo (dos fuentes de verdad
+# del mismo saludo). Solo se le agrega el hint de /ayuda, especifico de
+# Telegram (no aplica al chat web, que no tiene comandos slash).
+WELCOME_MESSAGE = GREETING_RESPONSE + "\n\nUsa /ayuda para ver los comandos disponibles."
 
 HELP_MESSAGE = (
     "Comandos:\n"
@@ -84,11 +87,17 @@ class TelegramBot(BaseBot):
             await self.send_message(chat_id, HELP_MESSAGE)
             return
         if text.startswith("/areas"):
-            db = SessionLocal()
-            try:
-                await self.send_message(chat_id, build_areas_message(db))
-            finally:
-                db.close()
+            # BUG REAL (auditoria de calidad de codigo, 2026-08-06): esta
+            # query (y, mas abajo, el pipeline RAG completo de
+            # handle_message) es 100% sincrona -- sin asyncio.to_thread,
+            # bloqueaba el unico hilo del event loop de uvicorn mientras
+            # corria, congelando TODAS las requests concurrentes del
+            # proceso (otros usuarios de Telegram, health checks, el
+            # dashboard admin). app/api/chat_web.py no tiene este problema
+            # porque su endpoint es `def`, no `async def` -- FastAPI lo
+            # despacha solo a su threadpool.
+            message_text = await asyncio.to_thread(self._build_areas_message_sync)
+            await self.send_message(chat_id, message_text)
             return
 
         answer = await self.handle_message(user_id, chat_id, text)
@@ -110,10 +119,25 @@ class TelegramBot(BaseBot):
         except HTTPException:
             return RATE_LIMIT_MESSAGE
 
+        # El pipeline RAG completo (queries SQLAlchemy sync, embeddings y
+        # generacion via cliente OpenAI sync con hasta 60s de timeout por
+        # hop, reranker via httpx sync) corre en un thread aparte -- ver
+        # comentario BUG REAL en handle_update sobre por que esto importa.
+        return await asyncio.to_thread(self._handle_message_sync, user_id, chat_id, text)
+
+    def _handle_message_sync(self, user_id: str, chat_id: str, text: str) -> str:
         db = SessionLocal()
         try:
             response, _ = handle_turn(db, self.platform, user_id, chat_id, text)
             return response.answer
+        finally:
+            db.close()
+
+    @staticmethod
+    def _build_areas_message_sync() -> str:
+        db = SessionLocal()
+        try:
+            return build_areas_message(db)
         finally:
             db.close()
 

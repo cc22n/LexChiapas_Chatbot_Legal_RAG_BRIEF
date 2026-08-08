@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiError, sendFeedback } from "@/lib/api";
 import type { ChatMessageData, FeedbackRating } from "@/lib/types";
 import { CitationList } from "./CitationList";
+import { InlineRelationGraph } from "./InlineRelationGraph";
 import { MarkdownContent } from "./MarkdownContent";
 import { TraceAccordion } from "./TraceAccordion";
 
@@ -48,6 +49,10 @@ export function ChatMessage({ message, sessionId }: ChatMessageProps) {
 
         {!isUser && message.citations && message.grounded && (
           <CitationList citations={message.citations} />
+        )}
+
+        {!isUser && message.agentTrace?.route === "historial_ley" && message.agentTrace.law_name && (
+          <InlineRelationGraph lawName={message.agentTrace.law_name} />
         )}
 
         {!isUser && <TraceAccordion trace={message.agentTrace} />}

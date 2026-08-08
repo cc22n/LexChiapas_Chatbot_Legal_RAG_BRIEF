@@ -84,6 +84,10 @@ class ChatResponse(BaseModel):
 class WebChatRequest(BaseModel):
     session_id: str
     message: str = Field(max_length=MAX_WEB_MESSAGE_LENGTH)
+    # Switch de registro elegido por el usuario en la UI (ver
+    # app.rag.generator._ESTILO_TECNICO/_ESTILO_COTIDIANO) -- default False
+    # (cotidiano) preserva el comportamiento historico para quien no lo manda.
+    technical: bool = False
 
 
 class WebChatResponse(ChatResponse):

@@ -1,3 +1,4 @@
+import heapq
 from dataclasses import dataclass
 
 from rank_bm25 import BM25Okapi
@@ -237,7 +238,12 @@ def sparse_search(
     if document_filter:
         pairs = [pair for pair in pairs if _fuzzy_contains(pair[0][1], document_filter)]
 
-    scored = sorted(pairs, key=lambda pair: pair[1], reverse=True)[:k]
+    # heapq.nlargest es equivalente a sorted(pairs, key=..., reverse=True)[:k]
+    # (mismo desempate, mismo resultado -- documentado por la stdlib) pero
+    # O(n log k) en vez de O(n log n): no hace falta ordenar TODO el corpus
+    # activo (miles de chunks) para quedarse solo con los primeros k
+    # (auditoria de calidad de codigo, 2026-08-06).
+    scored = heapq.nlargest(k, pairs, key=lambda pair: pair[1])
     max_score = max((s for _, s in scored), default=1.0) or 1.0
 
     return [

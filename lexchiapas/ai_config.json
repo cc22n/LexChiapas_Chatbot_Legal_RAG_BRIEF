@@ -42,7 +42,9 @@
       }
     ],
     "temperature": 0.1,
-    "max_tokens": 1024
+    "max_tokens": 1024,
+    "fast_timeout_seconds": 20,
+    "_note_fast_timeout": "Usado por app.llm.router.generate_with_fallback(fast=True) para llamadas triviales de clasificacion/reformulacion (decidir, grounding, hyde, query_rewriting, reformular) que no necesitan el timeout completo de 60s por hop -- ver auditoria de integracion LLM 2026-08-06. La generacion final (app.rag.generator.generate_answer) sigue usando el timeout completo, nunca fast=True."
   },
   "retrieval": {
     "similarity_threshold": 0.5,
@@ -85,6 +87,12 @@
       "_note": "Fase 7 Etapa 2. Solo tiene efecto si agentic_rag.enabled=true (self_reflection vive DENTRO del grafo del agente, no del pipeline lineal). Reintenta UNA vez (max_intentos=2 intentos totales, tope duro) reformulando la consulta de busqueda cuando el segundo gate de grounding (app.rag.grounding.answer_is_grounded_in_practice) degrada grounded=True a False DESPUES de generar con chunks que si pasaron el threshold real -- ver app.rag.agent_pipeline._should_retry_after_generar para la condicion completa y la evidencia real medida (PLAN.md Fase 7 Etapa 2) que justifica este valor. NUNCA reintenta cuando el gate primario ya fue False desde el intento 1 (medido: reintentar ahi con busqueda_general reintroduciria falsos positivos que la ruta busqueda_por_ley ya evita gratis en 2/3 casos documentados). MEDIDO (PLAN.md Fase 7 Etapa 2, 5 preguntas reales x 2 corridas): el reintento se disparo 1 de 5 veces, no cambio el resultado final (siguio correctamente grounded=False, sin alucinar) y costo ~2x el tiempo de esa pregunta (252s vs ~85-120s de un intento unico comparable). Sin mejora medida todavia -- se deja enabled=false por default hasta medir un caso real donde SI cambie un resultado, mismo criterio ya aplicado a reranker/HyDE en este proyecto (no asumir beneficio, medirlo).",
       "enabled": false,
       "max_intentos": 2
+    }
+  },
+  "visual_answers": {
+    "_note": "Fase 9 (2026-08-07). Contenido visual en la respuesta -- pedido explicito del usuario ('quiero que el chat pueda crear mapas mentales, cuadros comparativos... para mejor entendimiento'). Solo cubre tablas comparativas markdown en app.rag.generator (canal web Y Telegram -- Telegram las recibe igual porque SYSTEM_PROMPT es compartido, pero app.bots.output_formatter.flatten_markdown_tables las aplana a texto legible antes de mandarlas, Telegram nunca renderiza pipes). El diagrama de relaciones legales inline (Fase 2 del plan, RelationGraph.tsx en el chat web) NO usa esta bandera: no depende del LLM, esta grounded por construccion (datos reales de legal_relations), nunca puede alucinar, asi que no hay nada que medir/apagar ahi. Esta bandera SI cambia el prompt de generacion, asi que puede mover la tasa de grounded=True medida contra tests/test_rag_regression.py -- correr esa suite con enabled=true y enabled=false y comparar antes de confiar en el default. Apagar aca si la tasa empeora, sin tocar codigo.",
+    "comparison_tables": {
+      "enabled": true
     }
   }
 }

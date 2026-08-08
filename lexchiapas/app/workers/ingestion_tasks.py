@@ -42,8 +42,21 @@ def ingest_document(document_id: int, raw_text: str, replace_existing: bool = Fa
             raise ValueError(f"document_id {document_id} no existe")
 
         if replace_existing:
+            # BUG REAL (auditoria de base de datos, 2026-08-06): antes este
+            # DELETE se commiteaba aca mismo, en su propia transaccion,
+            # separada del INSERT de los chunks nuevos (que llega recien al
+            # final de embed_and_store_chunks, despues de N llamadas HTTP
+            # reales a NVIDIA por cada trozo -- puede fallar a mitad de
+            # camino). Si esa llamada fallaba, el except de abajo solo
+            # marcaba el log como failed: los chunks VIEJOS ya estaban
+            # borrados y commiteados, los NUEVOS nunca llegaron a insertarse
+            # -- la ley quedaba con 0 chunks activos, indistinguible de "esta
+            # ley no esta en el corpus" para un RAG legal donde esa es una
+            # respuesta valida. Sin commit aca, el DELETE queda pendiente en
+            # la MISMA transaccion que el commit final de
+            # embed_and_store_chunks: o se reemplazan los chunks completos,
+            # o (ver except abajo) se hace rollback y quedan los viejos.
             db.query(Chunk).filter(Chunk.document_id == document_id).delete(synchronize_session=False)
-            db.commit()
 
         legal_chunks = chunk_legal_text(raw_text, document_nombre=document.nombre)
         chunks_created = embed_and_store_chunks(db, document, legal_chunks)
@@ -54,6 +67,13 @@ def ingest_document(document_id: int, raw_text: str, replace_existing: bool = Fa
         db.commit()
         return {"document_id": document_id, "chunks_created": chunks_created}
     except Exception as exc:
+        # Descarta el DELETE (si replace_existing) y cualquier Chunk nuevo
+        # que ya se haya agregado a la sesion antes de que embed_text
+        # fallara -- sin esto, el commit de mas abajo (que solo pretende
+        # guardar el estado failed del log) commitearia tambien ese estado
+        # parcial. Con el rollback, los chunks VIEJOS quedan intactos si
+        # replace_existing fallo a mitad de camino.
+        db.rollback()
         log.status = "failed"
         # Fase 4, hallazgo real: `str(exc)` solo captura el mensaje final,
         # no donde ni por que trueno -- para un chunking/embedding real que

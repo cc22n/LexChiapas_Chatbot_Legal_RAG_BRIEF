@@ -25,7 +25,7 @@ def chat_web(payload: WebChatRequest, request: Request, db: Session = Depends(ge
     enforce_rate_limit(f"ip:{client_ip}")
 
     response, assistant_message = handle_turn(
-        db, PLATFORM, payload.session_id, payload.session_id, payload.message
+        db, PLATFORM, payload.session_id, payload.session_id, payload.message, technical=payload.technical
     )
     # Distingue el rechazo de Capa 1 (guardrails, fuera de tema) del caso
     # "no encontre informacion" real -- ambos dan grounded=False y

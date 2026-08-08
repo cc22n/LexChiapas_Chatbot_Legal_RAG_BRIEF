@@ -27,11 +27,15 @@ async function errorDetail(res: Response): Promise<string> {
   return `Error ${res.status}`;
 }
 
-export async function sendChatMessage(sessionId: string, message: string): Promise<WebChatResponse> {
+export async function sendChatMessage(
+  sessionId: string,
+  message: string,
+  technical: boolean = false
+): Promise<WebChatResponse> {
   const res = await fetch(`${API_BASE_URL}/api/chat/web`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, message }),
+    body: JSON.stringify({ session_id: sessionId, message, technical }),
   });
 
   if (!res.ok) {
@@ -76,10 +80,10 @@ export interface LegalRelationsResponse {
   relations: LegalRelation[];
 }
 
-// GET /api/laws y GET /api/legal-relations NO existen todavia en el backend
-// -- ver WEB_FRONTEND_PLAN.md Fase G para el pedido exacto. Estas funciones
-// quedan listas para cuando se implementen; hasta entonces siempre tiran
-// ApiError (404) y /explorar lo atrapa mostrando un mensaje explicito.
+// GET /api/laws y GET /api/legal-relations YA existen en el backend
+// (app/api/public.py, WEB_FRONTEND_PLAN.md Fase G) -- corregido, el
+// comentario anterior decia lo contrario (auditoria de contenido visual,
+// 2026-08-07).
 export async function getLaws(): Promise<Law[]> {
   const res = await fetch(`${API_BASE_URL}/api/laws`);
   if (!res.ok) {

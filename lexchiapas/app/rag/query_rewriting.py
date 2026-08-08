@@ -109,7 +109,7 @@ def rewrite_query(question: str, conversation_history: list[dict] | None = None)
         {"role": "user", "content": user_content},
     ]
     try:
-        rewritten, model_used, _, _ = generate_with_fallback(messages, temperature=0.1)
+        rewritten, model_used, _, _ = generate_with_fallback(messages, temperature=0.1, fast=True)
         rewritten = (rewritten or "").strip()
         if not rewritten:
             return question, False

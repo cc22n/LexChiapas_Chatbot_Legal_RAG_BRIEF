@@ -6,7 +6,7 @@ from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
-from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent
+from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
 from app.rag.hyde import generate_hypothetical_answer
 from app.rag.legal_synonyms import expand_legal_synonyms
 from app.rag.query_rewriting import rewrite_query
@@ -17,10 +17,18 @@ from app.schemas.chat import ChatResponse, RetrievedChunk as RetrievedChunkSchem
 
 
 def answer_question(
-    db: Session, question: str, conversation_history: list[dict] | None = None
+    db: Session,
+    question: str,
+    conversation_history: list[dict] | None = None,
+    technical: bool = False,
 ) -> tuple[ChatResponse, int]:
     """Corre el pipeline completo: Capa 1 (alcance) -> query rewriting ->
     hybrid search -> threshold -> rerank -> generacion.
+
+    technical: switch de registro (ver app.rag.generator._ESTILO_TECNICO)
+    elegido por el usuario en la UI -- solo afecta la instruccion de
+    generacion, retrieval/threshold/rerank son identicos sin importar su
+    valor.
 
     conversation_history: turnos previos de la MISMA conversacion ya
     persistidos, formato [{"role": "user"|"assistant", "content": str}, ...]
@@ -42,6 +50,26 @@ def answer_question(
     Devuelve (ChatResponse, tiempo_ms) para poder loguear response_time_ms.
     """
     start = time.monotonic()
+
+    # Small talk (saludos/agradecimientos/despedidas puros, ver
+    # app.rag.guardrails.detect_smalltalk_response): hallazgo real de UX,
+    # antes un "hola" caia en el mismo rechazo que una pregunta fuera de
+    # tema (OUT_OF_SCOPE_MESSAGE). Se evalua ANTES de gastar un embedding,
+    # y en CUALQUIER turno (no solo el primero, a diferencia de Capa 1 mas
+    # abajo) -- un "gracias" al cierre de una conversacion legal legitima
+    # debe reconocerse igual que un "hola" de apertura.
+    smalltalk_response = detect_smalltalk_response(question)
+    if smalltalk_response is not None:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        response = ChatResponse(
+            answer=smalltalk_response,
+            retrieved_chunks=[],
+            llm_model=None,
+            grounded=False,
+            prompt_tokens=None,
+            completion_tokens=None,
+        )
+        return response, elapsed_ms
 
     query_embedding = embed_text(question)
 
@@ -159,7 +187,7 @@ def answer_question(
     grounded = any(c.passed_threshold for c in top_chunks)
     generation_start = time.monotonic()
     answer, model_used, prompt_tokens, completion_tokens = generate_answer(
-        question, top_chunks if grounded else [], conversation_history=conversation_history
+        question, top_chunks if grounded else [], conversation_history=conversation_history, technical=technical
     )
     # generation_time_ms: SOLO la llamada a generate_answer. Si no habia
     # chunks grounded, generate_answer devuelve NO_ENCONTRADO sin llamar al

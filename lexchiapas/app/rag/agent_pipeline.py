@@ -93,6 +93,7 @@ tarea, leelas dos veces si vas a tocar este archivo):
    de ley.
 """
 
+import json
 import logging
 import re
 import time
@@ -108,7 +109,8 @@ from app.llm.router import AllModelsFailedError, generate_with_fallback
 from app.rag.agent_tools import get_article, query_graph, relations_to_chunks, search_by_law, search_laws
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
-from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent
+from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
+from app.rag.query_rewriting import rewrite_query
 from app.rag.retriever import RetrievedChunk
 from app.schemas.chat import AgentTrace, ChatResponse, RetrievedChunk as RetrievedChunkSchema
 
@@ -119,14 +121,25 @@ logger = logging.getLogger("lexchiapas.agent_pipeline")
 # Nodo "decidir"
 # ---------------------------------------------------------------------------
 
+# Migrado a JSON mode (2026-08-06, auditoria de integracion LLM -- ver
+# LexChiapas_Plan_Futuro.md Parte C.1 para el experimento real que confirmo
+# response_format={"type":"json_object"} viable en 4/5 proveedores del
+# fallback_order: minimax-m3, glm-5.2, gpt-4o-mini, grok-4.20 aceptaron el
+# parametro y devolvieron JSON valido de forma confiable; deepseek-v4-pro
+# dio timeout en el experimento, INCONCLUSO por infra, no por
+# incompatibilidad real -- si falla con este parametro, generate_with_fallback
+# ya lo trata como cualquier otro fallo de proveedor y pasa al siguiente). El
+# parser de texto plano (_parse_decision) se mantiene intacto como red de
+# seguridad para el proveedor que ignore response_format -- ver
+# _parse_decision_json/_parse_decision abajo.
 DECIDE_SYSTEM_PROMPT = (
     "Analizas una pregunta de un usuario sobre leyes y reglamentos de "
-    "Chiapas, Mexico, para decidir COMO buscar la respuesta. Responde en "
-    "EXACTAMENTE 3 lineas, sin explicaciones adicionales ni texto extra, "
-    "con este formato exacto:\n"
-    "ACCION: <NINGUNA|BUSQUEDA_GENERAL|BUSQUEDA_POR_LEY|ARTICULO_ESPECIFICO|HISTORIAL_LEY>\n"
-    "LEY: <nombre de la ley o codigo mencionado explicitamente, o NINGUNA>\n"
-    "ARTICULO: <numero de articulo mencionado explicitamente, o NINGUNA>\n\n"
+    "Chiapas, Mexico, para decidir COMO buscar la respuesta. Responde "
+    "UNICAMENTE con un objeto JSON, sin texto adicional antes ni despues, "
+    "con EXACTAMENTE estas 3 claves:\n"
+    '{"accion": "<NINGUNA|BUSQUEDA_GENERAL|BUSQUEDA_POR_LEY|ARTICULO_ESPECIFICO|HISTORIAL_LEY>", '
+    '"ley": <nombre de la ley o codigo mencionado explicitamente, o null>, '
+    '"articulo": <numero de articulo mencionado explicitamente, o null>}\n\n'
     "Usa ARTICULO_ESPECIFICO SOLO si la pregunta pide el contenido VIGENTE de "
     "un numero de articulo concreto de una ley identificable (ej. 'que dice "
     "el articulo 45 del codigo civil de Chiapas'). Usa HISTORIAL_LEY si la "
@@ -143,29 +156,19 @@ DECIDE_SYSTEM_PROMPT = (
     "ninguna busqueda legal (saludo, agradecimiento, despedida).\n\n"
     "Ejemplo 1:\n"
     "Pregunta: Que sanciones existen por tortura en Chiapas?\n"
-    "ACCION: BUSQUEDA_GENERAL\n"
-    "LEY: NINGUNA\n"
-    "ARTICULO: NINGUNA\n\n"
+    '{"accion": "BUSQUEDA_GENERAL", "ley": null, "articulo": null}\n\n'
     "Ejemplo 2:\n"
     "Pregunta: Que dice el articulo 270 del codigo penal de Chiapas?\n"
-    "ACCION: ARTICULO_ESPECIFICO\n"
-    "LEY: codigo penal\n"
-    "ARTICULO: 270\n\n"
+    '{"accion": "ARTICULO_ESPECIFICO", "ley": "codigo penal", "articulo": "270"}\n\n'
     "Ejemplo 3:\n"
     "Pregunta: Que dice la ley de transparencia de Chiapas sobre solicitudes de informacion?\n"
-    "ACCION: BUSQUEDA_POR_LEY\n"
-    "LEY: ley de transparencia\n"
-    "ARTICULO: NINGUNA\n\n"
+    '{"accion": "BUSQUEDA_POR_LEY", "ley": "ley de transparencia", "articulo": null}\n\n'
     "Ejemplo 4:\n"
     "Pregunta: Gracias, eso era todo\n"
-    "ACCION: NINGUNA\n"
-    "LEY: NINGUNA\n"
-    "ARTICULO: NINGUNA\n\n"
+    '{"accion": "NINGUNA", "ley": null, "articulo": null}\n\n'
     "Ejemplo 5:\n"
     "Pregunta: Que reformas ha tenido el Codigo de Atencion a la Familia de Chiapas?\n"
-    "ACCION: HISTORIAL_LEY\n"
-    "LEY: codigo de atencion a la familia\n"
-    "ARTICULO: NINGUNA"
+    '{"accion": "HISTORIAL_LEY", "ley": "codigo de atencion a la familia", "articulo": null}'
 )
 
 _VALID_DECISIONS = {
@@ -178,42 +181,46 @@ _LEY_RE = re.compile(r"LEY\s*:\s*(.+)", re.IGNORECASE)
 _ARTICULO_RE = re.compile(r"ARTICULO\s*:\s*(.+)", re.IGNORECASE)
 
 
-def _parse_decision(raw: str) -> tuple[str, str | None, str | None] | None:
-    """Parsea el output de DECIDE_SYSTEM_PROMPT. Devuelve
-    (accion, ley_o_None, articulo_o_None), o None si no se pudo parsear una
-    accion valida -- el llamador debe caer al default seguro
-    (busqueda_general) en ese caso, nunca bloquear ni asumir NINGUNA."""
-    accion_match = _ACCION_RE.search(raw)
-    if not accion_match:
+def _normalize_decision_fields(
+    accion_raw: object, ley_raw: object, articulo_raw: object
+) -> tuple[str, str | None, str | None] | None:
+    """Normaliza y valida los 3 campos crudos (accion/ley/articulo) sin
+    importar si vinieron del parser JSON o del parser regex de texto plano
+    (ver _parse_decision_json/_parse_decision abajo) -- misma logica de
+    downgrades seguros y de tolerancia a sufijos de articulo, centralizada
+    aca para que los dos caminos de parseo no puedan divergir. Devuelve None
+    si `accion_raw` no es una de las 5 acciones validas -- el llamador debe
+    caer al default seguro (busqueda_general) en ese caso, nunca bloquear ni
+    asumir NINGUNA."""
+    if not accion_raw:
         return None
-    accion = accion_match.group(1).strip().lower().rstrip(".,;")
+    accion = str(accion_raw).strip().lower().rstrip(".,;")
     if accion not in _VALID_DECISIONS:
         return None
 
-    ley_match = _LEY_RE.search(raw)
-    ley = ley_match.group(1).strip() if ley_match else None
+    ley = str(ley_raw).strip() if ley_raw else None
     if ley and ley.upper() in _NULLISH:
         ley = None
 
-    articulo_match = _ARTICULO_RE.search(raw)
-    articulo_raw = articulo_match.group(1).strip().rstrip(".,;") if articulo_match else None
     articulo = None
-    if articulo_raw and articulo_raw.upper() not in _NULLISH:
-        # Bug real encontrado y corregido (Etapa 1, ver app.rag.chunker.py
-        # ARTICULO_RE para el mismo patron ya conocido): chunks.articulo_numero
-        # guarda el sufijo latino cuando el articulo lo tiene ("15 Bis", "117
-        # BIS", "278-A") -- son comunes en este corpus (Codigo Penal en
-        # particular tiene muchos). Extraer SOLO el digito inicial (version
-        # anterior de este parser) descartaba el sufijo, asi que
-        # get_article() nunca encontraba estos articulos aunque existieran
-        # de verdad -- un "articulo_especifico" pedido con sufijo siempre
-        # caia a "no encontrado". Se preserva el numero completo (digitos +
-        # sufijo/guion tal como lo escribio el LLM); get_article() compara
-        # sin distinguir mayusculas/espacios para tolerar variantes de
-        # formato ("15 Bis" vs "15 BIS").
-        match = re.search(r"\d+[\s-]?[A-Za-z]*", articulo_raw)
-        if match:
-            articulo = match.group(0).strip()
+    if articulo_raw:
+        articulo_clean = str(articulo_raw).strip().rstrip(".,;")
+        if articulo_clean and articulo_clean.upper() not in _NULLISH:
+            # Bug real encontrado y corregido (Etapa 1, ver app.rag.chunker.py
+            # ARTICULO_RE para el mismo patron ya conocido): chunks.articulo_numero
+            # guarda el sufijo latino cuando el articulo lo tiene ("15 Bis", "117
+            # BIS", "278-A") -- son comunes en este corpus (Codigo Penal en
+            # particular tiene muchos). Extraer SOLO el digito inicial (version
+            # anterior de este parser) descartaba el sufijo, asi que
+            # get_article() nunca encontraba estos articulos aunque existieran
+            # de verdad -- un "articulo_especifico" pedido con sufijo siempre
+            # caia a "no encontrado". Se preserva el numero completo (digitos +
+            # sufijo/guion tal como lo escribio el LLM); get_article() compara
+            # sin distinguir mayusculas/espacios para tolerar variantes de
+            # formato ("15 Bis" vs "15 BIS").
+            match = re.search(r"\d+[\s-]?[A-Za-z]*", articulo_clean)
+            if match:
+                articulo = match.group(0).strip()
 
     # Downgrades seguros: si la accion pedida no trae los datos que
     # necesita, se cae a busqueda_general en vez de fallar o de forzar una
@@ -228,10 +235,46 @@ def _parse_decision(raw: str) -> tuple[str, str | None, str | None] | None:
     return accion, ley, articulo
 
 
+def _parse_decision_json(raw: str) -> tuple[str, str | None, str | None] | None:
+    """Parsea el output de DECIDE_SYSTEM_PROMPT como JSON
+    {"accion", "ley", "articulo"} -- se intenta PRIMERO (ver _node_decidir,
+    que pide response_format={"type":"json_object"}). Devuelve None si `raw`
+    no es JSON valido o no tiene forma de objeto -- el llamador cae a
+    _parse_decision (regex sobre texto plano) en ese caso, para el proveedor
+    que ignore response_format y devuelva texto plano de todas formas."""
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return _normalize_decision_fields(data.get("accion"), data.get("ley"), data.get("articulo"))
+
+
+def _parse_decision(raw: str) -> tuple[str, str | None, str | None] | None:
+    """Parsea el output de DECIDE_SYSTEM_PROMPT en el formato de texto plano
+    ACCION:/LEY:/ARTICULO: -- red de seguridad para cuando el proveedor no
+    respeta response_format (ver _parse_decision_json, que se intenta
+    primero en _node_decidir). Devuelve (accion, ley_o_None, articulo_o_None),
+    o None si no se pudo parsear una accion valida."""
+    accion_match = _ACCION_RE.search(raw)
+    ley_match = _LEY_RE.search(raw)
+    articulo_match = _ARTICULO_RE.search(raw)
+    return _normalize_decision_fields(
+        accion_match.group(1) if accion_match else None,
+        ley_match.group(1) if ley_match else None,
+        articulo_match.group(1) if articulo_match else None,
+    )
+
+
 class AgentState(TypedDict, total=False):
     db: Session
     question: str
     conversation_history: list[dict] | None
+    technical: bool
+    """Switch de registro (ver app.rag.generator._ESTILO_TECNICO), elegido
+    por el usuario en la UI -- solo lo lee _node_generar, no afecta ninguna
+    decision de ruteo/busqueda del agente."""
     query_embedding: list[float]
     decision: str
     law_name: str | None
@@ -268,15 +311,32 @@ class AgentState(TypedDict, total=False):
 
 def _node_decidir(state: AgentState) -> dict:
     question = state["question"]
+    # BUG REAL (2026-08-04, auditoria de integracion LLM): antes de este fix,
+    # este nodo siempre veia la pregunta CRUDA del usuario, aunque
+    # answer_question_agentic ya haya resuelto referencias de contexto/typos
+    # via rewrite_query en `search_text` (ver mas abajo) -- un seguimiento
+    # corto tipo "Y las multas?" llegaba aca sin contexto, y "decidir" no
+    # tenia forma de saber a que ley se referia. Se usa `search_text` (ya
+    # resuelto contra conversation_history antes de invocar el grafo, o
+    # `question` sin cambios si no hizo falta reescribir) para que la
+    # decision de ruta vea lo mismo que "buscar" -- mismo criterio ya
+    # aplicado en rag_pipeline.answer_question (search_question vs question).
+    search_text = state.get("search_text") or question
     messages = [
         {"role": "system", "content": DECIDE_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Pregunta: {question}"},
+        {"role": "user", "content": f"Pregunta: {search_text}"},
     ]
 
     decision, law_name, articulo = "busqueda_general", None, None
     try:
-        raw, model_used, _, _ = generate_with_fallback(messages, temperature=0.0)
-        parsed = _parse_decision(raw or "")
+        raw, model_used, _, _ = generate_with_fallback(
+            messages, temperature=0.0, fast=True, response_format={"type": "json_object"}
+        )
+        raw = raw or ""
+        # JSON primero (ver DECIDE_SYSTEM_PROMPT/_parse_decision_json); si el
+        # proveedor ignoro response_format y devolvio texto plano, cae al
+        # parser regex original como red de seguridad.
+        parsed = _parse_decision_json(raw) or _parse_decision(raw)
         if parsed is not None:
             decision, law_name, articulo = parsed
         else:
@@ -291,6 +351,8 @@ def _node_decidir(state: AgentState) -> dict:
         logger.warning(
             "agente decidir: todos los proveedores fallaron, usando busqueda_general por defecto: %s", exc
         )
+    except Exception as exc:  # noqa: BLE001 - fallback silencioso, mismo criterio que AllModelsFailedError arriba
+        logger.warning("agente decidir fallo (error inesperado), usando busqueda_general por defecto: %s", exc)
 
     return {"decision": decision, "law_name": law_name, "articulo": articulo}
 
@@ -353,6 +415,7 @@ def _node_buscar(state: AgentState) -> dict:
 def _node_generar(state: AgentState) -> dict:
     question = state["question"]
     conversation_history = state.get("conversation_history")
+    technical = state.get("technical", False)
     chunks = state.get("chunks") or []
     decision = state.get("decision", "busqueda_general")
 
@@ -375,7 +438,7 @@ def _node_generar(state: AgentState) -> dict:
         grounded_gate = any(c.passed_threshold for c in chunks)
 
     answer, model_used, prompt_tokens, completion_tokens = generate_answer(
-        question, chunks if grounded_gate else [], conversation_history=conversation_history
+        question, chunks if grounded_gate else [], conversation_history=conversation_history, technical=technical
     )
 
     grounded = grounded_gate
@@ -448,7 +511,7 @@ def _reformulate_search_text(question: str, previous_search_text: str, previous_
         {"role": "user", "content": user_content},
     ]
     try:
-        raw, model_used, _, _ = generate_with_fallback(messages, temperature=0.3)
+        raw, model_used, _, _ = generate_with_fallback(messages, temperature=0.3, fast=True)
         reformulated = (raw or "").strip()
         if not reformulated:
             return previous_search_text
@@ -461,6 +524,9 @@ def _reformulate_search_text(question: str, previous_search_text: str, previous_
             "agente reformular: todos los proveedores fallaron, reintentando con el mismo texto: %s", exc
         )
         return previous_search_text
+    except Exception as exc:  # noqa: BLE001 - fallback silencioso, ver docstring
+        logger.warning("agente reformular fallo (error inesperado), reintentando con el mismo texto: %s", exc)
+        return previous_search_text
 
 
 def _node_reformular(state: AgentState) -> dict:
@@ -469,8 +535,17 @@ def _node_reformular(state: AgentState) -> dict:
     previous_chunks = state.get("chunks") or []
 
     new_search_text = _reformulate_search_text(question, previous_search_text, previous_chunks)
-    new_query_embedding = embed_text(new_search_text)
+    if new_search_text == previous_search_text:
+        # BUG REAL (auditoria de calidad de codigo, 2026-08-06):
+        # _reformulate_search_text puede devolver el mismo texto sin cambios
+        # (el LLM no encontro una reformulacion genuinamente distinta, o la
+        # llamada fallo -- ver su docstring) -- en ese caso el embedding ya
+        # calculado para ese mismo texto sigue siendo valido, no vale la
+        # pena pagar otra llamada real a NVIDIA solo para recalcular lo
+        # mismo.
+        return {"search_text": new_search_text, "query_embedding": state.get("query_embedding")}
 
+    new_query_embedding = embed_text(new_search_text)
     return {"search_text": new_search_text, "query_embedding": new_query_embedding}
 
 
@@ -575,11 +650,19 @@ def _get_graph(self_reflection_enabled: bool):
     self_reflection_enabled (igual criterio que el cache de indice BM25 en
     app.rag.retriever -- compilar en cada pregunta seria trabajo repetido
     innecesario; el grafo en si no tiene estado mutable entre invocaciones,
-    invoke() recibe su propio AgentState). Se cachean AMBAS variantes (con y
-    sin el nodo/rama de reintento) porque ai_config.json se puede recargar
-    en caliente (get_ai_config() no tiene TTL propio mas alla del cache de
-    Settings) -- construir el grafo equivocado una sola vez y quedarse
-    pegado a el hasta reiniciar el proceso seria un bug real.
+    invoke() recibe su propio AgentState).
+
+    Correccion (auditoria de calidad de codigo, 2026-08-06): el docstring
+    anterior decia que ai_config.json "se puede recargar en caliente" -- eso
+    es incorrecto. get_ai_config() (app/config.py) esta decorado con
+    @lru_cache SIN argumentos y nada en el repo llama a su .cache_clear(),
+    asi que en la practica el archivo se lee UNA sola vez por proceso; un
+    cambio en ai_config.json requiere reiniciar el proceso para tomar
+    efecto, igual que Settings. Con eso, self_reflection_enabled tambien es
+    constante durante la vida del proceso, y este dict nunca va a tener mas
+    de una entrada real en produccion -- se mantiene parametrizado por bool
+    de todas formas porque es igual de simple que hardcodear un solo cache
+    y no asume nada sobre el orden de llamadas.
     """
     if self_reflection_enabled not in _compiled_graphs:
         _compiled_graphs[self_reflection_enabled] = _build_graph(self_reflection_enabled)
@@ -592,18 +675,28 @@ def _get_graph(self_reflection_enabled: bool):
 
 
 def answer_question_agentic(
-    db: Session, question: str, conversation_history: list[dict] | None = None
+    db: Session,
+    question: str,
+    conversation_history: list[dict] | None = None,
+    technical: bool = False,
 ) -> tuple[ChatResponse, int]:
     """MISMA firma que rag_pipeline.answer_question, para poder
     intercambiarlas via ai_config.json "agentic_rag.enabled" (ver
-    app.bots.conversation_store.handle_turn).
+    app.bots.conversation_store.handle_turn). `technical` se inyecta tal
+    cual en el AgentState inicial, solo lo usa _node_generar.
 
     Alcance de Etapa 1 (a proposito, ver docstring de modulo): NO incluye
-    query rewriting, expansion de sinonimos legales, HyDE, ni cache
-    semantico -- esas son optimizaciones ortogonales a la decision del
-    agente, evaluadas por separado. Lo que SI se preserva sin excepcion es
-    Capa 1 de guardrails y ambos gates anti-alucinacion (ver invariantes en
-    el docstring de modulo).
+    expansion de sinonimos legales, HyDE, ni cache semantico -- esas son
+    optimizaciones ortogonales a la decision del agente, evaluadas por
+    separado. Query rewriting (app.rag.query_rewriting.rewrite_query) SI se
+    aplica (agregado 2026-08-04, ver BUG REAL mas abajo): sin esto, un
+    seguimiento corto en una conversacion llegaba SIN CONTEXTO tanto a
+    "decidir" como a "buscar", degradando cualquier pregunta de seguimiento
+    con agentic_rag.enabled=true (ya en produccion) -- exactamente el mismo
+    bug que motivo rewrite_query en rag_pipeline.answer_question (Fase 6),
+    pero nunca portado aca hasta ahora. Lo que SI se preserva sin excepcion
+    desde el inicio es Capa 1 de guardrails y ambos gates anti-alucinacion
+    (ver invariantes en el docstring de modulo).
 
     Etapa 2 (self-reflection, ver docstring de modulo): bandera
     `ai_config.json` "agentic_rag.self_reflection.enabled" (default False) +
@@ -612,6 +705,22 @@ def answer_question_agentic(
     las use sin volver a leer el archivo de config en medio del grafo.
     """
     start = time.monotonic()
+
+    # Small talk: mismo criterio que rag_pipeline.answer_question (ver ese
+    # comentario para el hallazgo real completo) -- corre antes que
+    # cualquier otra cosa, incluida la lectura de ai_config.json.
+    smalltalk_response = detect_smalltalk_response(question)
+    if smalltalk_response is not None:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        response = ChatResponse(
+            answer=smalltalk_response,
+            retrieved_chunks=[],
+            llm_model=None,
+            grounded=False,
+            prompt_tokens=None,
+            completion_tokens=None,
+        )
+        return response, elapsed_ms
 
     ai_config = get_ai_config()
     self_reflection_config = ai_config.get("agentic_rag", {}).get("self_reflection", {})
@@ -638,12 +747,29 @@ def answer_question_agentic(
         )
         return response, elapsed_ms
 
+    # BUG REAL (2026-08-04, auditoria de integracion LLM): esta linea antes
+    # ponia `search_text` = `question` sin cambios -- el agente (a diferencia
+    # de rag_pipeline.answer_question, que ya llama rewrite_query desde Fase
+    # 6) nunca resolvia referencias de contexto conversacional ni typos antes
+    # de decidir ruta o buscar. Con agentic_rag.enabled=true ya en
+    # produccion, esto degradaba cualquier seguimiento corto en una
+    # conversacion ("Y las multas?") a una busqueda literal de ese texto
+    # sin contexto, casi siempre sin pasar el threshold real -- el mismo bug
+    # que rewrite_query fue creado para resolver, pero nunca portado aca.
+    # Mismo patron que rag_pipeline.answer_question: solo se recalcula el
+    # embedding si de verdad se reescribio algo, para no gastar una llamada
+    # de mas cuando no hace falta.
+    search_text, was_rewritten = rewrite_query(question, conversation_history)
+    if was_rewritten:
+        query_embedding = embed_text(search_text)
+
     initial_state: AgentState = {
         "db": db,
         "question": question,
         "conversation_history": conversation_history,
+        "technical": technical,
         "query_embedding": query_embedding,
-        "search_text": question,
+        "search_text": search_text,
         "intentos": 0,
         "max_intentos": max_intentos,
         "self_reflection_enabled": self_reflection_enabled,

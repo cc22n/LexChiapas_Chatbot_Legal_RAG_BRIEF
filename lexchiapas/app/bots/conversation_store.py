@@ -2,6 +2,7 @@ import logging
 import traceback
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_ai_config
@@ -29,17 +30,40 @@ def get_or_create_conversation(db: Session, platform: str, user_id: str, chat_id
     if conversation is None:
         conversation = Conversation(platform=platform, user_id=user_id, chat_id=chat_id)
         db.add(conversation)
-        db.commit()
-        db.refresh(conversation)
+        try:
+            db.commit()
+        except IntegrityError:
+            # BUG REAL (auditoria de base de datos, 2026-08-06): read-then-
+            # write sin lock -- dos requests concurrentes para el mismo
+            # chat_id (reintento de webhook de Telegram, doble clic en el
+            # primer mensaje web) pueden ambas ver None en el SELECT de
+            # arriba y ambas intentar insertar. El UniqueConstraint
+            # uq_conversations_platform_chat_id (app.models.conversation)
+            # hace que la segunda falle aca en vez de crear un duplicado --
+            # se descarta el insert perdedor y se relee la fila que SI gano
+            # la carrera, que es la que debe usar este turno.
+            db.rollback()
+            conversation = (
+                db.query(Conversation)
+                .filter_by(platform=platform, chat_id=chat_id)
+                .one()
+            )
+        else:
+            db.refresh(conversation)
     return conversation
 
 
 def handle_turn(
-    db: Session, platform: str, user_id: str, chat_id: str, text: str
+    db: Session, platform: str, user_id: str, chat_id: str, text: str, technical: bool = False
 ) -> tuple[ChatResponse, Message]:
     """Persiste el turno completo (mensaje de usuario + respuesta) para
     cualquier canal (Telegram, web, ...). Comun a todos los BaseBot y al
     endpoint de chat web para no duplicar esta logica en cada canal.
+
+    technical: switch de registro tecnico/cotidiano (ver
+    app.rag.generator._ESTILO_TECNICO), default False -- canales que no lo
+    exponen (Telegram, hoy) se comportan exactamente igual que antes de
+    este parametro existir.
     """
     conversation = get_or_create_conversation(db, platform, user_id, chat_id)
 
@@ -73,7 +97,7 @@ def handle_turn(
         pipeline_fn = answer_question
 
     try:
-        response, elapsed_ms = pipeline_fn(db, text, conversation_history=history)
+        response, elapsed_ms = pipeline_fn(db, text, conversation_history=history, technical=technical)
     except Exception as exc:
         # Antes de este fix, una excepcion aqui (NVIDIA caido, DB, bug de
         # codigo) tiraba un 500 sin dejar rastro -- la pregunta del usuario
