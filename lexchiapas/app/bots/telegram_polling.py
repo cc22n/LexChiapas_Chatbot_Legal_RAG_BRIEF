@@ -29,7 +29,20 @@ async def run_polling() -> None:
 
     offset = None
     while True:
-        updates = await raw_bot.get_updates(offset=offset, timeout=30)
+        # BUG REAL (2026-08-10, encontrado al dejar esto corriendo para
+        # grabar un demo): get_updates en si mismo puede tirar TimedOut/
+        # NetworkError por un hipo transitorio de red -- antes esto no
+        # tenia try/except propio (solo bot.handle_update mas abajo lo
+        # tenia), asi que un solo timeout tumbaba TODO el script de
+        # polling, no solo ese ciclo. Mismo criterio que el resto del
+        # proyecto con fallas de red intermitentes: loguear y seguir, no
+        # morir por un hipo de una llamada auxiliar.
+        try:
+            updates = await raw_bot.get_updates(offset=offset, timeout=30)
+        except Exception:
+            logger.exception("get_updates fallo, reintentando")
+            continue
+
         for update in updates:
             offset = update.update_id + 1
             try:

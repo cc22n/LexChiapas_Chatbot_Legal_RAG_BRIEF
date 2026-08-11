@@ -11,6 +11,8 @@ información, en vez de aproximar o alucinar una respuesta. Toda respuesta
 con fundamento cita la ley y el artículo, y siempre incluye el disclaimer de
 que no sustituye asesoría legal profesional.
 
+![Demo del chat web de LexChiapas: pregunta legal real, respuesta con citas expandibles y switch de registro tecnico/cotidiano](docs/demo-chat-web.gif)
+
 ## Por qué existe
 
 Proyecto de portafolio para demostrar un sistema RAG de dominio legal de
