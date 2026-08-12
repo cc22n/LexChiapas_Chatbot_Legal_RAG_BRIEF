@@ -30,8 +30,13 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
 ```
 
 - **Chunking legal**: la unidad natural es el artículo (nunca un corte
-  ciego por caracteres), cada chunk lleva metadata de a qué ley/título/
-  capítulo pertenece.
+  ciego por caracteres). Cada chunk guarda metadata real en columnas propias
+  (ley, título, capítulo, sección, número de artículo, más un JSONB abierto
+  para lo que no encaje en columnas fijas) y antepone ese contexto
+  estructural al texto ANTES de generar el embedding.
+- **Índice vectorial real**: HNSW (`vector_cosine_ops`) sobre la columna de
+  embeddings — sin esto, cada búsqueda hacía sequential scan sobre toda la
+  tabla de chunks (13,000+ filas y creciendo con cada ley nueva).
 - **Hybrid search**: búsqueda densa (pgvector, embeddings) + BM25 (sparse),
   con umbral de similitud real aplicado ANTES de generar cualquier
   respuesta.
@@ -43,6 +48,9 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
 - **GraphRAG**: relaciones de reforma/derogación/adición entre leyes,
   extraídas por regex de los marcadores reales del Periódico Oficial
   (sin LLM), navegables en un explorador visual público.
+- **Registro configurable**: switch cotidiano/técnico por pregunta — mismo
+  retrieval y las mismas citas, cambia solo cómo se redacta la respuesta
+  (lenguaje simple vs. terminología jurídica formal).
 - **Fallback multi-modelo**: orden de proveedores LLM configurable en
   `ai_config.json` (nunca hardcodeado), porque el catálogo de modelos
   gratuitos/baratos cambia seguido.
@@ -52,6 +60,11 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
 - **Evaluación medida, no "a ojo"**: golden dataset de 24 preguntas reales
   contra el corpus, corrida bajo demanda (Celery) y con historial de
   resultados, no solo una corrida manual perdida en una terminal.
+- **Confiabilidad operativa**: request ID que correlaciona logs de un mismo
+  turno a través de threads/tasks, deduplicación de updates de Telegram
+  (Redis, evita procesar dos veces un reintento de entrega), límite de
+  tamaño de body, y constraints de integridad reales en Postgres (unique/
+  check) vía Alembic.
 
 ## Stack
 
@@ -102,12 +115,13 @@ celery -A app.workers.celery_app worker --loglevel=info
 ## Estado
 
 Backend y frontend funcionales de punta a punta, verificados contra datos
-reales (no mocks): ingesta de ~20 leyes del Estado de Chiapas, RAG híbrido
-con reranking real, pipeline agéntico medido contra un golden dataset de 24
-preguntas, panel de métricas con 5 vistas (uso, calidad, performance,
-guardrails, agente), y un explorador público del grafo de relaciones
-legales. Deploy 24/7 y cobertura del corpus completo del Congreso son
-trabajo en progreso.
+reales (no mocks): 32 leyes activas del Estado de Chiapas (13,300+ chunks),
+RAG híbrido con reranking real, pipeline agéntico medido contra un golden
+dataset de 24 preguntas, grafo de 2,450+ relaciones legales reales
+(reforma/derogación/adición) extraídas del corpus, panel de métricas con 5
+vistas (uso, calidad, performance, guardrails, agente), y un explorador
+público del grafo de relaciones legales. Deploy 24/7 y cobertura del corpus
+completo del Congreso (146 leyes catalogadas) son trabajo en progreso.
 
 ## Licencia
 
