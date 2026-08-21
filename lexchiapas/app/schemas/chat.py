@@ -26,6 +26,12 @@ class RetrievedChunk(BaseModel):
     # campo no se puede saber desde la DB si un chunk paso threshold real o
     # vino solo de BM25 (que normaliza a similarity=1.0 sin ser comparable).
     passed_threshold: bool = False
+    # Vigencia real por articulo (ver app.rag.vigencia.is_articulo_derogado,
+    # Fase 9.1 del roadmap) -- True si el CONTENIDO REAL del articulo es
+    # "Se Deroga" (derogacion total, no una fraccion parcial). El frontend
+    # debe mostrar esto como una advertencia visible, no enterrarlo en el
+    # texto de la cita.
+    derogado: bool = False
 
 
 class AgentTrace(BaseModel):

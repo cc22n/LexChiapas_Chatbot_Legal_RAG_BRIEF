@@ -20,6 +20,11 @@ export function CitationList({ citations }: CitationListProps) {
           <summary className="cursor-pointer font-medium text-zinc-700 dark:text-zinc-300">
             {chunk.document_nombre}
             {chunk.articulo_numero ? `, Articulo ${chunk.articulo_numero}` : ""}
+            {chunk.derogado && (
+              <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-700 dark:bg-red-950 dark:text-red-400">
+                Derogado
+              </span>
+            )}
           </summary>
           <p className="mt-1 whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">
             {chunk.content}

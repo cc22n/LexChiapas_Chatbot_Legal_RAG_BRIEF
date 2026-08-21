@@ -13,6 +13,7 @@ from app.rag.query_rewriting import rewrite_query
 from app.rag.reranker import rerank
 from app.rag.retriever import hybrid_search
 from app.rag.semantic_cache import lookup as cache_lookup, store as cache_store
+from app.rag.vigencia import is_articulo_derogado
 from app.schemas.chat import ChatResponse, RetrievedChunk as RetrievedChunkSchema
 
 
@@ -226,6 +227,7 @@ def answer_question(
                 similarity=c.similarity,
                 content=c.content,
                 passed_threshold=c.passed_threshold,
+                derogado=is_articulo_derogado(c.content),
             )
             for c in top_chunks
         ],

@@ -4,6 +4,11 @@ export interface RetrievedChunk {
   articulo_numero: string | null;
   similarity: number;
   content: string;
+  // Vigencia real por articulo (app.rag.vigencia.is_articulo_derogado,
+  // Fase 9.1) -- True solo si el articulo esta COMPLETAMENTE derogado
+  // (contenido real "Se Deroga"), no una fraccion parcial dentro de un
+  // articulo que sigue vigente.
+  derogado?: boolean;
 }
 
 // Espejo de app.schemas.chat.ChatResponse.agent_trace, que YA existe y se

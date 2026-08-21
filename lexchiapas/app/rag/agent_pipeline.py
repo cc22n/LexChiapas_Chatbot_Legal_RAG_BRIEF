@@ -112,6 +112,7 @@ from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
 from app.rag.query_rewriting import rewrite_query
 from app.rag.retriever import RetrievedChunk
+from app.rag.vigencia import is_articulo_derogado
 from app.schemas.chat import AgentTrace, ChatResponse, RetrievedChunk as RetrievedChunkSchema
 
 logger = logging.getLogger("lexchiapas.agent_pipeline")
@@ -789,6 +790,7 @@ def answer_question_agentic(
                 similarity=c.similarity,
                 content=c.content,
                 passed_threshold=c.passed_threshold,
+                derogado=is_articulo_derogado(c.content),
             )
             for c in chunks
         ],

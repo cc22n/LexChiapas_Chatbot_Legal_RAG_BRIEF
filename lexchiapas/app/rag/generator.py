@@ -1,6 +1,7 @@
 from app.config import get_ai_config
 from app.llm.router import generate_with_fallback
 from app.rag.retriever import RetrievedChunk
+from app.rag.vigencia import is_articulo_derogado
 
 NO_ENCONTRADO = (
     "No encontre informacion sobre eso en las leyes de Chiapas que tengo "
@@ -40,7 +41,10 @@ _PROMPT_BASE = (
     "legales proporcionados. No inventes articulos, leyes ni contenido que no "
     "este en los fragmentos. Si los fragmentos no son suficientes para "
     "responder, dilo explicitamente en vez de adivinar. Cita siempre la ley y "
-    "el numero de articulo. "
+    "el numero de articulo. Si un fragmento tiene '-- DEROGADO' en su "
+    "encabezado, ese articulo especifico ya NO esta vigente -- dilo "
+    "explicitamente en la respuesta (ej. 'el articulo X fue derogado'), "
+    "nunca lo cites como si siguiera aplicando hoy. "
 )
 
 # Switch tecnico/cotidiano (idea evaluada en conversacion con Gemini,
@@ -194,8 +198,16 @@ def build_prompt(
     NO afecta retrieval ni los chunks ya recuperados, solo la instruccion de
     como redactar la respuesta a partir de ellos.
     """
+    # Vigencia real por articulo (Fase 9.1, ver app.rag.vigencia): marcar
+    # DEROGADO explicito en el encabezado que ve el LLM, no solo confiar en
+    # que note "Se Deroga" dentro del contenido -- un encabezado explicito
+    # es mas dificil de pasar por alto que una oracion suelta dentro de un
+    # fragmento largo, y refuerza la instruccion de REGLAS DE CONTENIDO
+    # (nunca presentar un articulo derogado como si siguiera vigente).
     context = "\n\n".join(
-        f"[{c.document_nombre}, Articulo {c.articulo_numero}]\n{c.content}" for c in chunks
+        f"[{c.document_nombre}, Articulo {c.articulo_numero}"
+        f"{' -- DEROGADO' if is_articulo_derogado(c.content) else ''}]\n{c.content}"
+        for c in chunks
     )
     # Delimitadores explicitos (ver SYSTEM_PROMPT): el contenido de los
     # chunks viene de PDFs scrapeados de fuentes gubernamentales -- no son
