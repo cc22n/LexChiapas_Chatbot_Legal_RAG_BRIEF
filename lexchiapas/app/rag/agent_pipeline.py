@@ -106,7 +106,14 @@ from langgraph.graph import END, START, StateGraph
 from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.llm.router import AllModelsFailedError, generate_with_fallback
-from app.rag.agent_tools import get_article, query_graph, relations_to_chunks, search_by_law, search_laws
+from app.rag.agent_tools import (
+    get_article,
+    get_article_ambiguity,
+    query_graph,
+    relations_to_chunks,
+    search_by_law,
+    search_laws,
+)
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -281,6 +288,13 @@ class AgentState(TypedDict, total=False):
     law_name: str | None
     articulo: str | None
     chunks: list[RetrievedChunk]
+    clarification_options: list[str]
+    """Fase 9.3 (coverage checker): poblado por _node_buscar SOLO en la
+    ruta articulo_especifico cuando get_article devolvio None por
+    AMBIGUEDAD real (2+ leyes candidatas, ver
+    app.rag.agent_tools.get_article_ambiguity) -- _node_generar lo revisa
+    de primero y, si esta presente, responde pidiendo aclaracion en vez de
+    generar con el LLM o admitir honestamente "no encontre informacion"."""
     answer: str
     model_used: str | None
     prompt_tokens: int | None
@@ -378,6 +392,14 @@ def _node_buscar(state: AgentState) -> dict:
 
     if decision == "articulo_especifico":
         chunk = get_article(db, state["law_name"], state["articulo"])
+        if chunk is None:
+            # Fase 9.3: antes de admitir "no encontre informacion" sin mas,
+            # distinguir si la razon real es AMBIGUEDAD (2+ leyes candidatas)
+            # -- solo se paga esta consulta extra en el caso raro donde
+            # get_article ya fallo, nunca en el camino feliz.
+            ambiguous = get_article_ambiguity(db, state["law_name"], state["articulo"])
+            if ambiguous:
+                return {"chunks": [], "intentos": intentos, "clarification_options": ambiguous}
         return {"chunks": [chunk] if chunk is not None else [], "intentos": intentos}
 
     if decision == "historial_ley":
@@ -419,6 +441,32 @@ def _node_generar(state: AgentState) -> dict:
     technical = state.get("technical", False)
     chunks = state.get("chunks") or []
     decision = state.get("decision", "busqueda_general")
+
+    # Fase 9.3 (coverage checker): un tercer camino ademas de
+    # responder/admitir-no-encontrado -- pedir aclaracion cuando
+    # _node_buscar detecto ambiguedad real de nombre de ley (ver
+    # AgentState.clarification_options). Deterministico, SIN llamar al LLM
+    # principal -- no hay nada que generar, solo listar las opciones reales
+    # que get_article_ambiguity ya encontro en la DB. grounded=False porque
+    # esto no es una respuesta fundamentada, es una pregunta de vuelta;
+    # nunca reintenta (articulo_especifico esta fuera de la lista blanca de
+    # _should_retry_after_generar, invariante 3 del docstring de modulo).
+    clarification_options = state.get("clarification_options")
+    if clarification_options:
+        opciones = "; ".join(clarification_options)
+        answer = (
+            f"Tu pregunta podria referirse a mas de una ley: {opciones}. "
+            "¿Podrias decirme cual de estas es la que te interesa?"
+        )
+        return {
+            "answer": answer,
+            "model_used": None,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "grounded": False,
+            "grounding_classifier_model": None,
+            "grounded_gate": False,
+        }
 
     if decision in ("articulo_especifico", "historial_ley"):
         # Gate anti-alucinacion PROPIO de estas rutas (ver decision de diseno

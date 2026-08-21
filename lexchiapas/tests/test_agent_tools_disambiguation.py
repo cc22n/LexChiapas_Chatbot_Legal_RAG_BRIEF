@@ -1,4 +1,4 @@
-from app.rag.agent_tools import get_article, query_graph
+from app.rag.agent_tools import get_article, get_article_ambiguity, query_graph
 
 # BUG REAL (hallazgo #9, revision de seguridad 2026-08-04): get_article y
 # query_graph tienen logica de desambiguacion real y cuidadosamente razonada
@@ -89,6 +89,51 @@ def test_get_article_ambiguous_match_without_exact_name_refuses_to_guess():
     ]
     db = _FakeDB([_FakeResult(rows)])
     assert get_article(db, "codigo civil", "5") is None
+
+
+# ---------------------------------------------------------------------------
+# get_article_ambiguity (Fase 9.3 -- companero de get_article para saber POR
+# QUE devolvio None cuando la razon es ambiguedad real, no ausencia)
+# ---------------------------------------------------------------------------
+
+
+def test_get_article_ambiguity_empty_when_no_candidates():
+    db = _FakeDB([_FakeResult([])])
+    assert get_article_ambiguity(db, "ley que no existe", "5") == []
+
+
+def test_get_article_ambiguity_empty_when_single_candidate():
+    rows = [_FakeRow(nombre="Ley de Aguas para el Estado de Chiapas")]
+    db = _FakeDB([_FakeResult(rows)])
+    assert get_article_ambiguity(db, "ley de aguas", "5") == []
+
+
+def test_get_article_ambiguity_empty_when_exact_name_resolves_it():
+    # Mismo caso que test_get_article_ambiguous_match_resolved_by_exact_name:
+    # el nombre exacto ya resuelve cual usar dentro de get_article, asi que
+    # NO es el caso "ambiguedad real" que amerita pedir aclaracion.
+    rows = [
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Primero (De las Personas)"),
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)"),
+    ]
+    db = _FakeDB([_FakeResult(rows)])
+    result = get_article_ambiguity(
+        db, "Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)", "5"
+    )
+    assert result == []
+
+
+def test_get_article_ambiguity_returns_candidates_when_genuinely_ambiguous():
+    rows = [
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)"),
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Primero (De las Personas)"),
+    ]
+    db = _FakeDB([_FakeResult(rows)])
+    result = get_article_ambiguity(db, "codigo civil", "5")
+    assert result == [
+        "Codigo Civil para el Estado de Chiapas - Libro Primero (De las Personas)",
+        "Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)",
+    ]
 
 
 # ---------------------------------------------------------------------------

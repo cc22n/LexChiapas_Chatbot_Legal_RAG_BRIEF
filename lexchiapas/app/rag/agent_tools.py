@@ -161,6 +161,47 @@ def get_article(db: Session, law_name: str, articulo: str) -> RetrievedChunk | N
     )
 
 
+def get_article_ambiguity(db: Session, law_name: str, articulo: str) -> list[str]:
+    """Companero de get_article para Fase 9.3 (coverage checker -- pedir
+    aclaracion en vez de responder/rechazar, ver LexChiapas_Plan_Futuro.md).
+
+    Pensado para llamarse SOLO cuando get_article(db, law_name, articulo)
+    ya devolvio None, para distinguir DOS causas que get_article no
+    diferencia en su valor de retorno: "esa ley/articulo genuinamente no
+    existe en el corpus" vs. "el nombre es AMBIGUO entre 2+ leyes activas
+    reales y ninguna coincide exacto" (el caso que get_article ya detecta
+    internamente y registra con logger.warning, pero que hasta ahora se
+    resolvia siempre como un "no encontre informacion" silencioso, sin
+    decirle al usuario que el problema es ambiguedad, no ausencia).
+
+    Devuelve la lista de nombres de documentos candidatos si es
+    genuinamente ambiguo, o `[]` si no (0 candidatos reales, exactamente 1,
+    o el nombre exacto ya habria resuelto cual usar -- en esos 3 casos
+    get_article no devolvio None por ambiguedad, asi que no hay nada que
+    aclarar). No reimplementa la logica de eleccion de get_article, corre
+    la MISMA consulta por separado -- barata, y solo se llama en el caso
+    raro donde get_article ya fallo."""
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT d.nombre
+            FROM chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE d.is_active = true
+              AND d.nombre ILIKE :law_pattern
+              AND UPPER(c.articulo_numero) = UPPER(:articulo)
+            """
+        ),
+        {"law_pattern": fuzzy_ilike_pattern(law_name), "articulo": articulo},
+    ).all()
+    distinct_docs = sorted({r.nombre for r in rows})
+    if len(distinct_docs) <= 1:
+        return []
+    if any(d.strip().lower() == law_name.strip().lower() for d in distinct_docs):
+        return []  # el nombre exacto ya resuelve esto dentro de get_article
+    return distinct_docs
+
+
 # ---------------------------------------------------------------------------
 # query_graph (Fase 8, GraphRAG) -- ver app.models.legal_relation.LegalRelation
 # y ingestion/extract_legal_relations.py para como se poblo la tabla.
