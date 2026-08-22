@@ -32,6 +32,14 @@ class RetrievedChunk(BaseModel):
     # debe mostrar esto como una advertencia visible, no enterrarlo en el
     # texto de la cita.
     derogado: bool = False
+    # Historial de reformas/derogaciones de ESTE articulo especifico (Fase
+    # 9.4, ver app.rag.agent_tools.get_articulo_historial) -- oraciones ya
+    # formateadas listas para mostrar, mismo texto que ya usa la ruta
+    # historial_ley (ver app.rag.agent_tools._relation_to_sentence). Vacio
+    # en la gran mayoria de articulos (nunca fueron reformados) -- el
+    # frontend debe mostrarlo como seccion opcional/colapsable, no como
+    # parte del cuerpo principal de la respuesta.
+    historial: list[str] = Field(default_factory=list)
 
 
 class AgentTrace(BaseModel):

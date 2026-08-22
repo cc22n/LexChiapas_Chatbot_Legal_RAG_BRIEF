@@ -4,11 +4,21 @@ export interface RetrievedChunk {
   articulo_numero: string | null;
   similarity: number;
   content: string;
+  // True solo si vino de dense_search y supero similarity_threshold real
+  // (ver app.schemas.chat.RetrievedChunk.passed_threshold) -- distingue un
+  // score de coseno real y comparable de uno sintetico (BM25, get_article,
+  // historial de relaciones) que siempre normaliza a 1.0 sin ser comparable.
+  passed_threshold?: boolean;
   // Vigencia real por articulo (app.rag.vigencia.is_articulo_derogado,
   // Fase 9.1) -- True solo si el articulo esta COMPLETAMENTE derogado
   // (contenido real "Se Deroga"), no una fraccion parcial dentro de un
   // articulo que sigue vigente.
   derogado?: boolean;
+  // Historial de reformas/derogaciones de ESTE articulo especifico (Fase
+  // 9.4, espejo de app.schemas.chat.RetrievedChunk.historial) -- oraciones
+  // ya formateadas listas para mostrar. Vacio en la gran mayoria de
+  // articulos (nunca fueron reformados).
+  historial?: string[];
 }
 
 // Espejo de app.schemas.chat.ChatResponse.agent_trace, que YA existe y se

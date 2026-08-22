@@ -109,6 +109,7 @@ from app.llm.router import AllModelsFailedError, generate_with_fallback
 from app.rag.agent_tools import (
     get_article,
     get_article_ambiguity,
+    get_articulo_historial,
     query_graph,
     relations_to_chunks,
     search_by_law,
@@ -839,6 +840,7 @@ def answer_question_agentic(
                 content=c.content,
                 passed_threshold=c.passed_threshold,
                 derogado=is_articulo_derogado(c.content),
+                historial=get_articulo_historial(db, c.document_nombre, c.articulo_numero),
             )
             for c in chunks
         ],

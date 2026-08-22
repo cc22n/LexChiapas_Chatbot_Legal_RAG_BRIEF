@@ -25,10 +25,32 @@ export function CitationList({ citations }: CitationListProps) {
                 Derogado
               </span>
             )}
+            {chunk.passed_threshold && (
+              <span
+                className="ml-2 text-[10px] font-normal normal-case text-zinc-400 dark:text-zinc-500"
+                title="Que tan cercano es este fragmento a tu pregunta segun el modelo de embeddings. No es una medida de certeza legal ni de que la respuesta sea correcta."
+              >
+                Coincidencia: {Math.round(chunk.similarity * 100)}%
+              </span>
+            )}
           </summary>
           <p className="mt-1 whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">
             {chunk.content}
           </p>
+          {chunk.historial && chunk.historial.length > 0 && (
+            <details className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 dark:border-amber-900 dark:bg-amber-950">
+              <summary className="cursor-pointer text-[11px] font-medium text-amber-800 dark:text-amber-400">
+                Ver historial de este articulo ({chunk.historial.length})
+              </summary>
+              <ul className="mt-1 flex flex-col gap-1">
+                {chunk.historial.map((evento, i) => (
+                  <li key={i} className="text-zinc-600 dark:text-zinc-400">
+                    {evento}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </details>
       ))}
     </div>

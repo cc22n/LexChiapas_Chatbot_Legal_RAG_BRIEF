@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_ai_config
 from app.llm.providers import embed_text
+from app.rag.agent_tools import get_articulo_historial
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -228,6 +229,7 @@ def answer_question(
                 content=c.content,
                 passed_threshold=c.passed_threshold,
                 derogado=is_articulo_derogado(c.content),
+                historial=get_articulo_historial(db, c.document_nombre, c.articulo_numero),
             )
             for c in top_chunks
         ],

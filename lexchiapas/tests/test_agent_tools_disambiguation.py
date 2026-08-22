@@ -1,4 +1,6 @@
-from app.rag.agent_tools import get_article, get_article_ambiguity, query_graph
+from datetime import date
+
+from app.rag.agent_tools import get_article, get_article_ambiguity, get_articulo_historial, query_graph
 
 # BUG REAL (hallazgo #9, revision de seguridad 2026-08-04): get_article y
 # query_graph tienen logica de desambiguacion real y cuidadosamente razonada
@@ -183,6 +185,38 @@ def test_query_graph_ambiguous_match_with_articulo_narrows_to_exact_document():
     # SI se uso para filtrar en vez del ILIKE amplio sobre los 2 candidatos.
     assert db.calls[2].get("doc_id") == 2
     assert "pattern" not in db.calls[2]
+
+
+# ---------------------------------------------------------------------------
+# get_articulo_historial (Fase 9.4 -- historial de reformas visible en el
+# chat, companero de query_graph que solo formatea oraciones listas para el
+# frontend a partir de un articulo puntual ya citado en la respuesta)
+# ---------------------------------------------------------------------------
+
+
+def test_get_articulo_historial_returns_empty_without_hitting_db_when_no_articulo():
+    db = _FakeDB([])
+    assert get_articulo_historial(db, "Ley de Aguas para el Estado de Chiapas", None) == []
+    assert db.calls == []
+
+
+def test_get_articulo_historial_empty_when_no_relations():
+    db = _FakeDB([_FakeResult([_FakeRow(id=5, nombre="ley sin historial")]), _FakeResult([0]), _FakeResult([])])
+    assert get_articulo_historial(db, "ley sin historial", "5") == []
+
+
+def test_get_articulo_historial_formats_real_relation_as_sentence():
+    matched = [_FakeRow(id=5, nombre="Ley de Aguas para el Estado de Chiapas")]
+    relation_row = _FakeRow(
+        relation_type="reforma", from_document_id=5, from_document_nombre="Ley de Aguas para el Estado de Chiapas",
+        from_articulo="10", from_chunk_id=99, to_document_id=5, to_law_name_raw="Ley de Aguas para el Estado de Chiapas",
+        fecha=date(2020, 3, 15), source_text="(REFORMADO, P.O. 15-MAR-2020)", extraction_method="regex",
+    )
+    db = _FakeDB([_FakeResult(matched), _FakeResult([1]), _FakeResult([relation_row])])
+    result = get_articulo_historial(db, "Ley de Aguas para el Estado de Chiapas", "10")
+    assert len(result) == 1
+    assert "articulo 10" in result[0].lower()
+    assert "15 de marzo de 2020" in result[0]
 
 
 def test_query_graph_ambiguous_match_without_exact_name_keeps_broad_filter():

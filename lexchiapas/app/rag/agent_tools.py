@@ -460,3 +460,23 @@ def relations_to_chunks(relations: list[dict]) -> list[RetrievedChunk]:
         )
         for rel in relations
     ]
+
+
+def get_articulo_historial(db: Session, document_nombre: str, articulo_numero: str | None) -> list[str]:
+    """Companero de query_graph para Fase 9.4 (historial de reformas visible
+    directamente en la respuesta del chat, sin que el usuario tenga que ir a
+    /explorar por separado).
+
+    Se llama con el nombre LITERAL del documento tal como quedo en el chunk
+    citado (c.document_nombre, nunca una entrada libre de usuario) -- al ser
+    el nombre exacto, query_graph lo resuelve sin ambiguedad aunque ese
+    nombre matchee mas de un documento por ILIKE (ver narrowed_doc_id en
+    query_graph). Devuelve [] si no hay numero de articulo que acotar (ej.
+    chunks de encabezado/glosario sin articulo_numero) o si el articulo
+    simplemente nunca tuvo una relacion registrada -- el caso normal, la
+    gran mayoria de articulos nunca fueron reformados.
+    """
+    if not articulo_numero:
+        return []
+    relations = query_graph(db, document_nombre, articulo=articulo_numero, limit=10)
+    return [_relation_to_sentence(rel) for rel in relations]
