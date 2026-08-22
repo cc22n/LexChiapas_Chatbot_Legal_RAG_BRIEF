@@ -8,7 +8,7 @@ from app.rag.agent_tools import (
     _relation_to_sentence,
     relations_to_chunks,
 )
-from app.rag.retriever import fuzzy_ilike_pattern
+from app.rag.retriever import fuzzy_ilike_pattern, normalize_for_match
 
 # Estos tests cubren solo la logica DETERMINISTICA de la ruta nueva
 # HISTORIAL_LEY (Fase 8, GraphRAG -- ver PLAN.md Fase 8 y
@@ -204,3 +204,33 @@ def test_fuzzy_ilike_pattern_tolerates_extra_whitespace():
 
 def test_fuzzy_ilike_pattern_single_word():
     assert fuzzy_ilike_pattern("catastro") == "%catastro%"
+
+
+# ---------------------------------------------------------------------------
+# normalize_for_match / acentos en fuzzy_ilike_pattern (Fase 9.4, bug real
+# encontrado probando el agente en vivo con agentic_rag activado): el nodo
+# "decidir" del LLM escribe espanol con ortografia correcta (acentos) aunque
+# se le pida copiar el nombre de la ley tal cual lo escribio el usuario --
+# documents.nombre esta siempre en ASCII puro (ver CLAUDE.md), asi que un
+# ILIKE literal con "Código" nunca matcheaba "Codigo" en la DB real. Antes
+# de este fix, esto hacia que get_article/get_article_ambiguity/query_graph
+# devolvieran "no encontrado" para leyes que SI existen en el corpus.
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_for_match_strips_accents_and_lowercases():
+    assert normalize_for_match("Código Penal para el Estado de Chiapas") == "codigo penal para el estado de chiapas"
+
+
+def test_normalize_for_match_is_noop_on_plain_ascii():
+    assert normalize_for_match("codigo penal") == "codigo penal"
+
+
+def test_fuzzy_ilike_pattern_strips_accents_so_it_matches_ascii_db_names():
+    # Mismo patron ASCII sin importar si el LLM escribio con o sin acentos --
+    # el patron ILIKE resultante debe ser identico para poder matchear
+    # documents.nombre (siempre ASCII) en cualquiera de los dos casos.
+    assert fuzzy_ilike_pattern("Código Penal para el Estado de Chiapas") == fuzzy_ilike_pattern(
+        "Codigo Penal para el Estado de Chiapas"
+    )
+    assert fuzzy_ilike_pattern("Código Penal para el Estado de Chiapas") == "%codigo%penal%para%el%estado%de%chiapas%"

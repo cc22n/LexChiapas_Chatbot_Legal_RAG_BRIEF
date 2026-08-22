@@ -1,4 +1,5 @@
 import heapq
+import unicodedata
 from dataclasses import dataclass
 
 from rank_bm25 import BM25Okapi
@@ -22,6 +23,32 @@ class RetrievedChunk:
     irrelevante sea, y no tiene un umbral absoluto comparable al de dense —
     por eso un chunk que SOLO aparece por sparse nunca puede por si solo
     justificar una respuesta grounded (ver rag_pipeline.answer_question)."""
+
+
+def normalize_for_match(text_value: str) -> str:
+    """Quita acentos/diacriticos (NFKD + descarta marcas combinantes) y baja
+    a minusculas -- usado para comparar contra `documents.nombre`, que en
+    este corpus SIEMPRE esta en ASCII puro (ver CLAUDE.md, convencion de
+    ingesta). Compartido por fuzzy_ilike_pattern (para construir el patron
+    ILIKE) y por las comparaciones de nombre EXACTO en agent_tools.py
+    (get_article/get_article_ambiguity/query_graph).
+
+    BUG REAL (Fase 9.4, prueba en vivo del agente con agentic_rag activado
+    en produccion): el nodo "decidir" (LLM) escribe espanol con ortografia
+    correcta ("Codigo" -> "Codigo" con acento en la o, "Código") incluso
+    cuando el prompt le pide copiar el nombre de la ley TAL CUAL lo escribio
+    el usuario -- un ILIKE literal contra documents.nombre (ASCII, sin
+    acentos) fallaba con 0 filas para CUALQUIER nombre de ley que el LLM
+    acentuara, no solo el caso ambiguo que se estaba arreglando. Sin esto,
+    pedirle al LLM el nombre completo para desambiguar (ver Ejemplo 6 de
+    DECIDE_SYSTEM_PROMPT en agent_pipeline.py) empeoraba las cosas en vez de
+    arreglarlas: antes del nombre completo al menos se obtenia la lista de
+    candidatos ambiguos; con el nombre completo pero acentuado, no se
+    encontraba nada en absoluto."""
+    stripped = "".join(
+        c for c in unicodedata.normalize("NFKD", text_value) if not unicodedata.combining(c)
+    )
+    return stripped.strip().lower()
 
 
 def fuzzy_ilike_pattern(name: str) -> str:
@@ -56,7 +83,7 @@ def fuzzy_ilike_pattern(name: str) -> str:
     search_by_law, la ruta busqueda_por_ley del agente) y query_graph/
     get_article compartan el mismo criterio -- son el mismo problema real,
     no dos bugs distintos."""
-    tokens = [_escape_ilike_wildcards(t) for t in name.strip().split() if t]
+    tokens = [_escape_ilike_wildcards(t) for t in normalize_for_match(name).split() if t]
     return "%" + "%".join(tokens) + "%"
 
 

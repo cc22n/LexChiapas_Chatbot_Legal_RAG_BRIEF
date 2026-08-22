@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.providers import embed_text
 from app.rag.reranker import rerank
-from app.rag.retriever import RetrievedChunk, fuzzy_ilike_pattern, hybrid_search
+from app.rag.retriever import RetrievedChunk, fuzzy_ilike_pattern, hybrid_search, normalize_for_match
 
 logger = logging.getLogger("lexchiapas.agent_tools")
 
@@ -139,7 +139,7 @@ def get_article(db: Session, law_name: str, articulo: str) -> RetrievedChunk | N
 
     distinct_docs = {r.nombre for r in rows}
     if len(distinct_docs) > 1:
-        exact = [r for r in rows if r.nombre.strip().lower() == law_name.strip().lower()]
+        exact = [r for r in rows if normalize_for_match(r.nombre) == normalize_for_match(law_name)]
         if exact:
             rows = exact
         else:
@@ -197,7 +197,7 @@ def get_article_ambiguity(db: Session, law_name: str, articulo: str) -> list[str
     distinct_docs = sorted({r.nombre for r in rows})
     if len(distinct_docs) <= 1:
         return []
-    if any(d.strip().lower() == law_name.strip().lower() for d in distinct_docs):
+    if any(normalize_for_match(d) == normalize_for_match(law_name) for d in distinct_docs):
         return []  # el nombre exacto ya resuelve esto dentro de get_article
     return distinct_docs
 
@@ -309,7 +309,7 @@ def query_graph(db: Session, law_name: str, articulo: str | None = None, limit: 
 
     narrowed_doc_id: int | None = None
     if len(matched) > 1:
-        exact = [m for m in matched if m.nombre.strip().lower() == law_name.strip().lower()]
+        exact = [m for m in matched if normalize_for_match(m.nombre) == normalize_for_match(law_name)]
         if articulo:
             if len(exact) == 1:
                 narrowed_doc_id = exact[0].id

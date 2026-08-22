@@ -80,6 +80,24 @@ def test_get_article_ambiguous_match_resolved_by_exact_name():
     assert chunk.content == "libro 2"
 
 
+def test_get_article_ambiguous_match_resolved_by_exact_name_ignoring_accents():
+    # Mismo caso que test_get_article_ambiguous_match_resolved_by_exact_name,
+    # pero el nombre exacto viene con acentos (el nodo "decidir" del LLM
+    # escribe espanol con ortografia correcta aunque se le pida copiar tal
+    # cual, ver normalize_for_match) mientras que documents.nombre esta
+    # siempre en ASCII puro -- bug real encontrado probando el agente en
+    # produccion (Fase 9.4): sin comparar de forma accent-insensitive, esto
+    # se rehusaba a resolver un caso que SI tenia match exacto.
+    rows = [
+        _FakeRow(id=1, nombre="Codigo Civil para el Estado de Chiapas - Libro Primero (De las Personas)", articulo_numero="5", content="libro 1"),
+        _FakeRow(id=2, nombre="Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)", articulo_numero="5", content="libro 2"),
+    ]
+    db = _FakeDB([_FakeResult(rows)])
+    chunk = get_article(db, "Código Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)", "5")
+    assert chunk is not None
+    assert chunk.chunk_id == 2
+
+
 def test_get_article_ambiguous_match_without_exact_name_refuses_to_guess():
     # Sin match exacto de nombre entre los candidatos, la funcion NUNCA debe
     # adivinar cual de los documentos es el correcto (ver docstring: "el peor
@@ -192,6 +210,18 @@ def test_query_graph_ambiguous_match_with_articulo_narrows_to_exact_document():
 # chat, companero de query_graph que solo formatea oraciones listas para el
 # frontend a partir de un articulo puntual ya citado en la respuesta)
 # ---------------------------------------------------------------------------
+
+
+def test_get_article_ambiguity_empty_when_exact_name_resolves_it_ignoring_accents():
+    rows = [
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Primero (De las Personas)"),
+        _FakeRow(nombre="Codigo Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)"),
+    ]
+    db = _FakeDB([_FakeResult(rows)])
+    result = get_article_ambiguity(
+        db, "Código Civil para el Estado de Chiapas - Libro Segundo (De los Bienes)", "5"
+    )
+    assert result == []
 
 
 def test_get_articulo_historial_returns_empty_without_hitting_db_when_no_articulo():

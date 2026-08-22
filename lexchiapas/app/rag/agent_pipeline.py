@@ -149,6 +149,14 @@ DECIDE_SYSTEM_PROMPT = (
     '{"accion": "<NINGUNA|BUSQUEDA_GENERAL|BUSQUEDA_POR_LEY|ARTICULO_ESPECIFICO|HISTORIAL_LEY>", '
     '"ley": <nombre de la ley o codigo mencionado explicitamente, o null>, '
     '"articulo": <numero de articulo mencionado explicitamente, o null>}\n\n'
+    "Para 'ley': si el usuario escribio un nombre COMPLETO u oficial (incluye "
+    "frases como 'de Procedimientos', 'para el Estado de Chiapas', numero de "
+    "Libro, etc.), copialo TAL CUAL lo escribio, sin acortarlo -- varias leyes "
+    "de Chiapas comparten las mismas palabras clave (ej. 'Codigo Penal' vs "
+    "'Codigo de Procedimientos Penales'; los distintos Libros del 'Codigo "
+    "Civil') y acortar el nombre le impide al sistema distinguir cual de "
+    "ellas es. Usa una forma corta/generica (ej. 'codigo penal') SOLO cuando "
+    "el usuario mismo la uso de forma corta.\n\n"
     "Usa ARTICULO_ESPECIFICO SOLO si la pregunta pide el contenido VIGENTE de "
     "un numero de articulo concreto de una ley identificable (ej. 'que dice "
     "el articulo 45 del codigo civil de Chiapas'). Usa HISTORIAL_LEY si la "
@@ -177,7 +185,10 @@ DECIDE_SYSTEM_PROMPT = (
     '{"accion": "NINGUNA", "ley": null, "articulo": null}\n\n'
     "Ejemplo 5:\n"
     "Pregunta: Que reformas ha tenido el Codigo de Atencion a la Familia de Chiapas?\n"
-    '{"accion": "HISTORIAL_LEY", "ley": "codigo de atencion a la familia", "articulo": null}'
+    '{"accion": "HISTORIAL_LEY", "ley": "codigo de atencion a la familia", "articulo": null}\n\n'
+    "Ejemplo 6 (nombre completo -- NO acortar, ver instruccion arriba):\n"
+    "Pregunta: Que dice el articulo 270 del Codigo Penal para el Estado de Chiapas?\n"
+    '{"accion": "ARTICULO_ESPECIFICO", "ley": "Codigo Penal para el Estado de Chiapas", "articulo": "270"}'
 )
 
 _VALID_DECISIONS = {
