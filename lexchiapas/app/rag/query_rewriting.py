@@ -25,6 +25,13 @@ logger = logging.getLogger("lexchiapas.query_rewriting")
 # cambia con poco aviso, ningun componente deberia depender de un solo slug
 # de modelo fijo (ver PLAN.md Fase 2.5 y ai_config.json "llm.fallback_order").
 
+# Prefijo fijo de la pregunta de aclaracion de la Fase 9.3 (ver
+# app.rag.agent_pipeline._node_generar, rama clarification_options) --
+# unica fuente de verdad compartida entre quien la GENERA (agent_pipeline)
+# y quien la DETECTA (_last_turn_is_clarification_question mas abajo), para
+# que un cambio de texto en un lado no rompa silenciosamente al otro.
+CLARIFICATION_QUESTION_MARKER = "Tu pregunta podria referirse a mas de una ley"
+
 REWRITE_SYSTEM_PROMPT = (
     "Reescribes preguntas legales en espanol para busqueda: corriges "
     "errores de tipeo, ortografia y lenguaje coloquial a terminologia "
@@ -41,7 +48,13 @@ REWRITE_SYSTEM_PROMPT = (
     "Ejemplo 2 (resolver referencia usando el contexto de un turno anterior):\n"
     "Contexto: El usuario pregunto sobre tortura segun la ley de Chiapas.\n"
     "Seguimiento: Y las multas?\n"
-    "Reescrita: Que sanciones o multas contempla la ley de tortura de Chiapas?"
+    "Reescrita: Que sanciones o multas contempla la ley de tortura de Chiapas?\n\n"
+    "Ejemplo 3 (el usuario responde SOLO con el nombre de la ley a una "
+    "pregunta tuya de aclaracion sobre cual ley se referia -- conserva el "
+    "numero de articulo que ya se menciono en el contexto, no lo pierdas):\n"
+    "Contexto: Que dice el articulo 270 del codigo penal?\n"
+    "Seguimiento: Codigo Penal para el Estado de Chiapas\n"
+    "Reescrita: Que dice el articulo 270 del Codigo Penal para el Estado de Chiapas?"
 )
 
 # Umbral de palabras para decidir si una pregunta CON historial vale la pena
@@ -52,10 +65,41 @@ REWRITE_SYSTEM_PROMPT = (
 SHORT_QUESTION_WORD_THRESHOLD = 6
 
 
+def _last_turn_is_clarification_question(conversation_history: list[dict] | None) -> bool:
+    """True si el turno MAS RECIENTE de la conversacion es la pregunta de
+    aclaracion de la Fase 9.3 (ver CLARIFICATION_QUESTION_MARKER arriba).
+
+    BUG REAL encontrado probando el agente en produccion (Fase 9.5): cuando
+    el usuario responde a esa aclaracion con SOLO el nombre oficial de la
+    ley (ej. "Codigo Penal para el Estado de Chiapas", 7 palabras), el
+    umbral de SHORT_QUESTION_WORD_THRESHOLD (6) lo clasificaba como
+    pregunta "larga" y needs_rewriting devolvia False -- el numero de
+    articulo mencionado en el turno anterior se perdia por completo, y el
+    nodo "decidir" del agente (que solo ve `search_text`, nunca
+    conversation_history directamente) volvia a BUSQUEDA_POR_LEY en vez de
+    retomar ARTICULO_ESPECIFICO. Los nombres oficiales de ley en Chiapas
+    faciles superan las 6 palabras, asi que el umbral por si solo nunca iba
+    a cubrir este caso -- se necesita esta senal EXPLICITA en vez de subir
+    el umbral a ciegas (que solo movería el problema a un nombre aun mas
+    largo)."""
+    if not conversation_history:
+        return False
+    last_turn = conversation_history[-1]
+    return (
+        last_turn.get("role") == "assistant"
+        and CLARIFICATION_QUESTION_MARKER in (last_turn.get("content") or "")
+    )
+
+
 def needs_rewriting(question: str, conversation_history: list[dict] | None) -> bool:
     """Reescribe si es el PRIMER turno (normaliza tipeo/registro coloquial,
-    sin nada que contextualizar -- ver REWRITE_SYSTEM_PROMPT Ejemplo 1) o si
-    es una pregunta corta CON historial (resuelve referencias, Ejemplo 2).
+    sin nada que contextualizar -- ver REWRITE_SYSTEM_PROMPT Ejemplo 1), si
+    es una pregunta corta CON historial (resuelve referencias, Ejemplo 2), o
+    si el turno anterior fue la pregunta de aclaracion de la Fase 9.3 (ver
+    _last_turn_is_clarification_question, Ejemplo 3 -- sin importar cuantas
+    palabras tenga la respuesta, el nombre de una ley por si solo casi
+    siempre supera el umbral de abajo pero igual necesita fusionarse con el
+    articulo del turno anterior).
 
     Hallazgo real (transcript de usuario, 2026-07-30): el primer mensaje de
     una conversacion nueva, largo pero lleno de errores de tipeo
@@ -65,6 +109,8 @@ def needs_rewriting(question: str, conversation_history: list[dict] | None) -> b
     historial (ya se establecio el tema, no necesitan reescritura) siguen
     usando el umbral de palabras para no gastar la llamada de mas."""
     if not conversation_history:
+        return True
+    if _last_turn_is_clarification_question(conversation_history):
         return True
     return len(question.split()) <= SHORT_QUESTION_WORD_THRESHOLD
 

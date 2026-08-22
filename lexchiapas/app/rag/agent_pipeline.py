@@ -118,7 +118,7 @@ from app.rag.agent_tools import (
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
-from app.rag.query_rewriting import rewrite_query
+from app.rag.query_rewriting import CLARIFICATION_QUESTION_MARKER, rewrite_query
 from app.rag.retriever import RetrievedChunk
 from app.rag.vigencia import is_articulo_derogado
 from app.schemas.chat import AgentTrace, ChatResponse, RetrievedChunk as RetrievedChunkSchema
@@ -467,7 +467,7 @@ def _node_generar(state: AgentState) -> dict:
     if clarification_options:
         opciones = "; ".join(clarification_options)
         answer = (
-            f"Tu pregunta podria referirse a mas de una ley: {opciones}. "
+            f"{CLARIFICATION_QUESTION_MARKER}: {opciones}. "
             "¿Podrias decirme cual de estas es la que te interesa?"
         )
         return {
