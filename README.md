@@ -34,6 +34,10 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
   (ley, título, capítulo, sección, número de artículo, más un JSONB abierto
   para lo que no encaje en columnas fijas) y antepone ese contexto
   estructural al texto ANTES de generar el embedding.
+- **Vigencia real por artículo**: detecta cuando un artículo fue derogado
+  en su totalidad analizando el contenido real del chunk (no solo
+  metadata) y lo marca explícitamente en la cita — nunca presenta como
+  vigente un artículo que ya no lo es.
 - **Índice vectorial real**: HNSW (`vector_cosine_ops`) sobre la columna de
   embeddings — sin esto, cada búsqueda hacía sequential scan sobre toda la
   tabla de chunks (13,000+ filas y creciendo con cada ley nueva).
@@ -44,10 +48,17 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
   Jina y a una heurística local si ambos proveedores fallan.
 - **RAG agéntico** (LangGraph): decide la ruta de búsqueda (general / por
   ley / artículo específico / historial de reformas), con auto-reflexión
-  y reintento cuando el grounding inicial no es suficiente.
+  y reintento cuando el grounding inicial no es suficiente. Cuando el
+  nombre de ley preguntado coincide con 2+ leyes reales del corpus (ej.
+  "Código Penal" vs. "Código de Procedimientos Penales"), pide aclarar en
+  vez de adivinar o alucinar cuál — y retiene el artículo mencionado
+  aunque la respuesta a esa aclaración sea solo el nombre de la ley.
 - **GraphRAG**: relaciones de reforma/derogación/adición entre leyes,
   extraídas por regex de los marcadores reales del Periódico Oficial
-  (sin LLM), navegables en un explorador visual público.
+  (sin LLM), navegables en un explorador visual público y también visibles
+  directo en la respuesta del chat (historial de reformas de ese artículo
+  puntual, sin tener que salir al explorador) junto con el score de
+  similitud de cada cita, cuando es un valor realmente comparable.
 - **Registro configurable**: switch cotidiano/técnico por pregunta — mismo
   retrieval y las mismas citas, cambia solo cómo se redacta la respuesta
   (lenguaje simple vs. terminología jurídica formal).
@@ -116,12 +127,13 @@ celery -A app.workers.celery_app worker --loglevel=info
 
 Backend y frontend funcionales de punta a punta, verificados contra datos
 reales (no mocks): 32 leyes activas del Estado de Chiapas (13,300+ chunks),
-RAG híbrido con reranking real, pipeline agéntico medido contra un golden
-dataset de 24 preguntas, grafo de 2,450+ relaciones legales reales
-(reforma/derogación/adición) extraídas del corpus, panel de métricas con 5
-vistas (uso, calidad, performance, guardrails, agente), y un explorador
-público del grafo de relaciones legales. Deploy 24/7 y cobertura del corpus
-completo del Congreso (146 leyes catalogadas) son trabajo en progreso.
+RAG híbrido con reranking real, pipeline agéntico (ruta por defecto en
+producción, medido contra un golden dataset de 24 preguntas), grafo de
+2,450+ relaciones legales reales (reforma/derogación/adición) extraídas del
+corpus, panel de métricas con 5 vistas (uso, calidad, performance,
+guardrails, agente), y un explorador público del grafo de relaciones
+legales. Deploy 24/7 y cobertura del corpus completo del Congreso (146
+leyes catalogadas) son trabajo en progreso.
 
 ## Licencia
 
