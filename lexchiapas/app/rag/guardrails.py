@@ -33,7 +33,19 @@ logger = logging.getLogger("lexchiapas.guardrails")
 # real lo respalda. El costo de un falso POSITIVO (rechazar una pregunta
 # legal legitima) es alto -- rompe la experiencia justo para el caso que el
 # proyecto existe para resolver. Se prioriza no rechazar de mas.
-IN_SCOPE_THRESHOLD = 0.50
+# Recalibrado 2026-08-27 (0.50 -> 0.40) tras el reemplazo de embeddings
+# (nv-embedqa-e5-v5 -> nvidia/llama-nemotron-embed-vl-1b-v2, ver
+# ai_config.json "_note_migracion_2026_08_27"): el modelo nuevo produce
+# similitudes sistematicamente mas bajas/comprimidas para preguntas legales
+# reales que no calzan de cerca con ninguno de los 12 ejemplos fijos --
+# hallazgo real, 2 preguntas del golden dataset ("...Biblioteca Publica en
+# Chiapas?" sim=0.4272, "...credito fiscal garantizado en Chiapas?"
+# sim=0.4836) quedaban rechazadas con el umbral viejo pese a ser
+# claramente legales. Verificado que 0.40 no introduce falsos positivos
+# reales: 6 preguntas genuinamente fuera de dominio (capital de Francia,
+# receta, aritmetica, futbol, pelicula, receta de pastel) dieron como
+# maximo 0.2016 -- margen amplio (>0.18) contra el nuevo umbral.
+IN_SCOPE_THRESHOLD = 0.40
 
 IN_SCOPE_EXAMPLES = [
     "Que dice la ley de Chiapas sobre el matrimonio?",

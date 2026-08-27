@@ -8,6 +8,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 EMBEDDING_DIMENSION = 1024  # debe coincidir con app/config.py -> ai_config.json embeddings.dimension
+# Migrado 2026-08-27: nvidia/nv-embedqa-e5-v5 llego a su fin de vida real,
+# se reemplazo por nvidia/llama-nemotron-embed-vl-1b-v2 -- ver
+# ai_config.json "_note_migracion_2026_08_27". Dimension SIGUE en 1024 (el
+# modelo nuevo emite 2048 nativo, truncado a 1024 via el parametro
+# "dimensions" en embed_text, ver app.llm.providers) -- sin cambio de
+# esquema, pero el corpus completo igual se re-embebio porque el espacio
+# vectorial de un modelo distinto no es comparable aunque coincida la
+# dimension.
 
 
 class Chunk(Base):

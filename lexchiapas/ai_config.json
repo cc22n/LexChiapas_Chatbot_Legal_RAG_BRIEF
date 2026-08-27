@@ -1,8 +1,9 @@
 {
   "_note": "Model slugs verificados el 2026-07-07 contra /v1/models y con una llamada real (ver PLAN.md 'Entorno real'). El catalogo de NVIDIA NIM cambia: si alguno empieza a fallar, volver a listar /v1/models antes de asumir que el slug sigue existiendo.",
   "embeddings": {
+    "_note_migracion_2026_08_27": "nvidia/nv-embedqa-e5-v5 llego a su fin de vida el 2026-08-25 (API devolvia 410 Gone, produccion caida) -- se migro a nvidia/llama-nemotron-embed-vl-1b-v2, el unico modelo verificado ACCESIBLE con esta API key (nvidia/embed-qa-4, nvidia/nv-embedqa-mistral-7b-v2, nvidia/llama-3.2-nv-embedqa-1b-v1, snowflake/arctic-embed-l dieron 404 'Not found for account'; nvidia/nemotron-3-embed-1b SI es accesible pero su dimension nativa de 2048 excede el limite duro de pgvector para indices hnsw/ivfflat -- 2000 dims maximo -- y no soporta truncar via el parametro 'dimensions'). llama-nemotron-embed-vl-1b-v2 emite 2048 nativo PERO SI soporta 'dimensions':1024 (ver app.llm.providers.embed_text, se pasa siempre en extra_body), asi que se mantiene dimension=1024 sin tocar el esquema de chunks.embedding ni el indice HNSW. Aun con la MISMA dimension, cambiar de modelo invalida cualquier embedding viejo (el espacio vectorial de un modelo distinto no es comparable), asi que el corpus completo (13,307 chunks) se re-embebio igual, y semantic_cache se vacio (cache de performance, no fuente de verdad). Si este modelo tambien llega a EOL: listar /v1/models, verificar accesibilidad real con una llamada, confirmar que soporta 'dimensions':1024 (o volver a evaluar si vale la pena migrar el esquema a una dimension mayor), re-embeber TODO el corpus, nunca asumir que un modelo nuevo es compatible con los vectores ya guardados.",
     "provider": "nvidia_nim",
-    "model": "nvidia/nv-embedqa-e5-v5",
+    "model": "nvidia/llama-nemotron-embed-vl-1b-v2",
     "base_url": "https://integrate.api.nvidia.com/v1",
     "dimension": 1024
   },
@@ -78,7 +79,8 @@
   },
   "hyde": {
     "_note": "Fase 6, LexChiapas_Evolucion_RAG_Progresiva.md seccion 1.2. Bandera para medir CON/SIN HyDE sin tocar codigo (ver app.rag.hyde y app.rag.rag_pipeline). Reemplaza SOLO el query_embedding usado para dense_search dentro de hybrid_search; el query_text usado para BM25/sparse_search sigue siendo la pregunta real siempre. Estado medido contra tests/test_rag_regression.py, ver PLAN.md Fase 6 para el resultado exacto que justifica este valor.",
-    "enabled": true
+    "_note_migracion_2026_08_27": "DESACTIVADO tras el reemplazo de embeddings (nv-embedqa-e5-v5 -> nvidia/llama-nemotron-embed-vl-1b-v2). Medido en vivo contra el golden dataset completo: con HyDE=true el modelo nuevo daba 18 passed/1 xfailed/5 failed (varios casos reales por debajo del embedding hipotetico de HyDE, ej. Codigo Civil Art.737 caia de sim=0.556 -- embebiendo la pregunta real -- a sim=0.338 -- embebiendo la respuesta hipotetica de HyDE); con HyDE=false, 20 passed/2 xfailed/2 failed, mas cerca del baseline historico (21/2/1) que HyDE=true. La tecnica de HyDE (comparar 'texto legal hipotetico' contra 'texto legal real', ambos en el mismo espacio vectorial) fue medida y activada especificamente para el modelo viejo -- no transfirio bien al modelo nuevo. Si se prueba un modelo de embeddings distinto en el futuro, volver a medir CON/SIN HyDE antes de asumir que este resultado se mantiene.",
+    "enabled": false
   },
   "agentic_rag": {
     "_note": "Fase 7 Etapa 1, LexChiapas_Evolucion_RAG_Progresiva.md seccion FASE 2. Bandera para elegir entre app.rag.rag_pipeline.answer_question (pipeline lineal) y app.rag.agent_pipeline.answer_question_agentic (agente LangGraph: decidir -> buscar -> generar, sin loop todavia) sin tocar codigo -- ver app.bots.conversation_store.handle_turn para donde se lee esta bandera. Activado (2026-07-27) tras confirmar el fix de fuzzy_ilike_pattern contra las 24 preguntas completas (21 passed/2 xfailed_known/1 failed, el failed es una mejora real -- ver LexChiapas_Plan_Futuro.md Parte 1.A).",

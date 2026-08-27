@@ -98,17 +98,25 @@ def embed_text(text: str, input_type: str = "query") -> list[float]:
     que se van a indexar. NV-Embed es un modelo asimetrico: la API rechaza la
     llamada (400) si no se manda este parametro, y usar el valor equivocado
     en cada caso degrada la calidad del retrieval aunque la llamada no falle.
+
+    "dimensions" (Migracion 2026-08-27, ver ai_config.json
+    "_note_migracion_2026_08_27"): nvidia/llama-nemotron-embed-vl-1b-v2
+    emite 2048 dims nativo, pero pgvector no soporta indices hnsw/ivfflat
+    con mas de 2000 dims -- se trunca a ai_config["embeddings"]["dimension"]
+    (1024, verificado con una llamada real que el modelo SI honra este
+    parametro) para no tener que migrar el esquema de chunks.embedding.
     """
     ai_config = get_ai_config()
     client = get_nim_client()
     model = ai_config["embeddings"]["model"]
+    dimension = ai_config["embeddings"]["dimension"]
 
     for attempt in range(1, _EMBED_MAX_ATTEMPTS + 1):
         try:
             response = client.embeddings.create(
                 model=model,
                 input=[text],
-                extra_body={"input_type": input_type},
+                extra_body={"input_type": input_type, "dimensions": dimension},
             )
             return response.data[0].embedding
         except _EMBED_RETRYABLE_ERRORS as exc:
