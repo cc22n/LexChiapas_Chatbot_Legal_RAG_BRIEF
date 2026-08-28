@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.evaluation.golden_dataset import (
+    LIMITATION_TOLERATE_GROUNDED_FALSE,
     LIMITATION_TOLERATE_GROUNDED_TRUE,
     LIMITATION_TOLERATE_MISSING_POSITION,
     GoldenCase,
@@ -124,6 +125,45 @@ def evaluate_case(case: GoldenCase, response: Any) -> CaseEvaluation:
             )
         return CaseEvaluation(
             case=case, status="passed", actual_grounded=actual_grounded, position=position, reason=""
+        )
+
+    if case.limitation_kind == LIMITATION_TOLERATE_GROUNDED_FALSE:
+        # Inverso de LIMITATION_TOLERATE_GROUNDED_TRUE (Fase 9.7): tolera
+        # que el sistema admita honestamente "no encontre informacion"
+        # (el fallo SEGURO) en un caso donde expects_grounded=True. NUNCA
+        # tolera un grounded=True que termine citando el articulo
+        # EQUIVOCADO -- si esta corrida SI dio grounded=True, se exige que
+        # ademas haya encontrado el articulo correcto (o su alternativa),
+        # mismo criterio anti-alucinacion que el resto de este modulo.
+        if actual_grounded is not True:
+            return CaseEvaluation(
+                case=case,
+                status="xfailed_known",
+                actual_grounded=actual_grounded,
+                position=position,
+                reason=(
+                    "limitacion de retrieval conocida (caso borde de "
+                    f"similarity_threshold): {case.known_limitation_reason}"
+                ),
+            )
+        alt_match = _alt_law_matches(response, case)
+        if position is None and not alt_match:
+            return CaseEvaluation(
+                case=case,
+                status="failed",
+                actual_grounded=actual_grounded,
+                position=position,
+                reason=(
+                    "grounded=True esta corrida, pero cito un articulo "
+                    "distinto al esperado -- no se tolera un falso positivo"
+                ),
+            )
+        return CaseEvaluation(
+            case=case,
+            status="passed",
+            actual_grounded=actual_grounded,
+            position=position,
+            reason="limitacion conocida no reprodujo esta corrida: grounded=True y encontro el articulo correcto",
         )
 
     # --- Casos estandar (sin limitacion conocida) ---

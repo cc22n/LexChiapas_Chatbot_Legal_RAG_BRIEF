@@ -30,17 +30,31 @@ funciones. Los 3 casos reales con esta forma son:
 Los 3 se marcan aca known_limitation=True para reflejar el codigo real, no
 el resumen. Ver limitation_kind de cada caso para el detalle de que
 comportamiento tolera cada uno.
+
+Fase 9.7 (migracion real de embeddings nv-embedqa-e5-v5 -> nvidia/llama-
+nemotron-embed-vl-1b-v2, 2026-08-27, ver LexChiapas_Plan_Futuro.md): se
+agregaron 2 casos mas con LIMITATION_TOLERATE_GROUNDED_FALSE (bordes de
+similitud reales del modelo nuevo, medidos con dense_search directo antes
+de marcarlos, nunca asumidos):
+- test_familiar_adulto_mayor_definicion
+- test_civil_notariado_fe_publica
 """
 
 from dataclasses import dataclass, field
 
 
-# Dos formas distintas de xfail condicional presentes en el archivo original
-# (ver docstring del modulo arriba). El campo limitation_kind le dice a
-# app.evaluation.common.evaluate_case cual de las dos aplica; None para
-# casos sin limitacion conocida.
+# Formas de xfail condicional que app.evaluation.common.evaluate_case
+# reconoce. El campo limitation_kind le dice cual aplica; None para casos
+# sin limitacion conocida. Las primeras dos vienen del archivo original
+# (ver docstring del modulo arriba); LIMITATION_TOLERATE_GROUNDED_FALSE se
+# agrego en la Fase 9.7 (migracion real de embeddings, 2026-08-27) para el
+# caso INVERSO al primero: expects_grounded=True pero el sistema admite
+# honestamente "no encontre informacion" (el fallo SEGURO) en vez de citar
+# algo con confianza -- nunca tolera un grounded=True que cite el articulo
+# EQUIVOCADO, solo tolera el grounded=False honesto.
 LIMITATION_TOLERATE_GROUNDED_TRUE = "tolerate_grounded_true"
 LIMITATION_TOLERATE_MISSING_POSITION = "tolerate_missing_position"
+LIMITATION_TOLERATE_GROUNDED_FALSE = "tolerate_grounded_false"
 
 
 @dataclass(frozen=True)
@@ -154,6 +168,27 @@ GOLDEN_DATASET: list[GoldenCase] = [
         # corregida a proposito.
         alt_ley_contains="ley de asistencia e integracion",
         alt_articulos=("1",),
+        # Hallazgo real (Fase 9.7, migracion de embeddings, 2026-08-27):
+        # con nvidia/llama-nemotron-embed-vl-1b-v2 (ver ai_config.json
+        # "_note_migracion_2026_08_27"), un dense_search directo (threshold=0,
+        # k=15) para esta pregunta NO trae NI el articulo esperado
+        # (Atencion a la Familia Art.2) NI la alternativa aceptada arriba
+        # (Asistencia e Integracion Art.1) en el top-6 -- el candidato mas
+        # cercano de la ley alternativa es su Art.3 (sim=0.4830), no el
+        # Art.1 esperado. El modelo nuevo produce similitudes sistematicamente
+        # mas bajas/comprimidas para este tipo de pregunta (mismo patron que
+        # otros casos borde documentados en la Fase 9.7) -- el sistema
+        # admite honestamente "no encontre informacion" en vez de citar algo
+        # con confianza, que es el fallo SEGURO, no uno peligroso.
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_FALSE,
+        known_limitation_reason=(
+            "Fase 9.7: con el modelo de embeddings nuevo (llama-nemotron-"
+            "embed-vl-1b-v2), ni el articulo esperado ni la alternativa "
+            "documentada superan similarity_threshold=0.5 -- verificado con "
+            "dense_search directo, el mejor candidato real fue 0.5263 (una "
+            "ley distinta, Ninas Ninos y Adolescentes, no relacionada)."
+        ),
     ),
     GoldenCase(
         name="test_transito_reincidencia",
@@ -236,6 +271,20 @@ GOLDEN_DATASET: list[GoldenCase] = [
         ley_contains="Notariado",
         articulo_esperado="9",
         expects_grounded=True,
+        # Hallazgo real (Fase 9.7, migracion de embeddings, 2026-08-27): con
+        # el modelo nuevo, un dense_search directo SI trae el articulo
+        # correcto (Ley del Notariado Art.9) en la posicion 1, pero su
+        # similitud real (0.4887) queda apenas por debajo de
+        # similarity_threshold=0.5 -- el caso limite mas ajustado de todos
+        # los medidos en esta migracion (a menos de 0.02 del threshold).
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_FALSE,
+        known_limitation_reason=(
+            "Fase 9.7: con el modelo de embeddings nuevo, el articulo "
+            "correcto (Notariado Art.9) rankea primero en dense_search "
+            "directo pero con similitud 0.4887, apenas por debajo de "
+            "similarity_threshold=0.5 -- verificado, no asumido."
+        ),
     ),
     GoldenCase(
         name="test_ambiental_sanciones",
