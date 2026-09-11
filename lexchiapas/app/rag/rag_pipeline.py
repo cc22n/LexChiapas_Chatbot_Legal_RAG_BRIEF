@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_ai_config
 from app.llm.providers import embed_text
+from app.llm.token_usage import begin_usage, get_usage
 from app.rag.agent_tools import get_articulo_historial
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
@@ -52,6 +53,10 @@ def answer_question(
     Devuelve (ChatResponse, tiempo_ms) para poder loguear response_time_ms.
     """
     start = time.monotonic()
+    # Fase 9.8/A10: acumulador de tokens del turno (ver token_usage). Cubre la
+    # generacion mas las auxiliares (query rewriting, HyDE si estuviera on,
+    # 2o gate de grounding); se lee en el return principal.
+    begin_usage()
 
     # Small talk (saludos/agradecimientos/despedidas puros, ver
     # app.rag.guardrails.detect_smalltalk_response): hallazgo real de UX,
@@ -218,6 +223,10 @@ def answer_question(
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
+    # Fase 9.8/A10: tokens reales del turno (generacion + auxiliares) desde el
+    # acumulador, en vez de solo los de generate_answer.
+    gen_prompt, gen_completion, aux_prompt, aux_completion = get_usage()
+
     response = ChatResponse(
         answer=answer,
         retrieved_chunks=[
@@ -235,8 +244,10 @@ def answer_question(
         ],
         llm_model=model_used,
         grounded=grounded,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
+        prompt_tokens=gen_prompt or None,
+        completion_tokens=gen_completion or None,
+        aux_prompt_tokens=aux_prompt or None,
+        aux_completion_tokens=aux_completion or None,
         grounding_classifier_model=grounding_classifier_model,
         was_rewritten=was_rewritten,
         search_time_ms=search_time_ms,

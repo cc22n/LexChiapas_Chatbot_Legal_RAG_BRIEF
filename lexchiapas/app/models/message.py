@@ -39,6 +39,12 @@ class Message(Base):
     # para el dashboard de metricas).
     prompt_tokens: Mapped[int | None] = mapped_column(Integer)
     completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Fase 9.8/A10: tokens de las llamadas LLM AUXILIARES del turno (decidir,
+    # reformular, 2o gate de grounding, query rewriting) -- prompt/completion_
+    # tokens de arriba son solo la generacion principal. El costo real es la
+    # suma. None en filas historicas (no se median) y en turnos sin LLM.
+    aux_prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    aux_completion_tokens: Mapped[int | None] = mapped_column(Integer)
     found_answer: Mapped[bool | None] = mapped_column(Boolean)
     # Proveedor/modelo que respondio el clasificador de grounding (ver
     # app.rag.grounding), NO el mismo campo que llm_model (que es el

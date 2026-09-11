@@ -149,6 +149,8 @@ def handle_turn(
         response_time_ms=elapsed_ms,
         prompt_tokens=response.prompt_tokens,
         completion_tokens=response.completion_tokens,
+        aux_prompt_tokens=response.aux_prompt_tokens,
+        aux_completion_tokens=response.aux_completion_tokens,
         found_answer=response.grounded,
         grounding_classifier_model=response.grounding_classifier_model,
         was_rewritten=response.was_rewritten,

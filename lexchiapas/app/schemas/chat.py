@@ -59,8 +59,16 @@ class ChatResponse(BaseModel):
     retrieved_chunks: list[RetrievedChunk]
     llm_model: str | None = None
     grounded: bool
+    # prompt_tokens/completion_tokens = tokens de la GENERACION principal (la
+    # respuesta que ve el usuario). aux_* = tokens de las llamadas LLM
+    # AUXILIARES del turno (decidir, reformular, 2o gate de grounding, query
+    # rewriting) que antes no se contaban -- el costo real es la suma de ambos
+    # (Fase 9.8/A10). None cuando no se llamo al LLM (fuera de dominio,
+    # smalltalk, cache hit).
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    aux_prompt_tokens: int | None = None
+    aux_completion_tokens: int | None = None
     # Proveedor/modelo que respondio la llamada del clasificador de
     # grounding (ver app.rag.grounding.answer_is_grounded_in_practice) --
     # None si nunca se llego a llamar (grounded ya era False por threshold)

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 4ZgeRUMJ9f6yvZtSIT2wRcQH3cMLtHiUFmLSf7xgXjPzjGerfFLiOdGOUf4gxFC
+\restrict bcb8k9g0z45oufOCKgzHoxK5RHHrhglClHe61fkJ4JiGzoGbgAhHMSXaRBElowg
 
 -- Dumped from database version 18.0
 -- Dumped by pg_dump version 18.0
@@ -364,6 +364,8 @@ CREATE TABLE public.messages (
     search_time_ms integer,
     generation_time_ms integer,
     agent_trace jsonb,
+    aux_prompt_tokens integer,
+    aux_completion_tokens integer,
     CONSTRAINT ck_messages_role CHECK (((role)::text = ANY ((ARRAY['user'::character varying, 'assistant'::character varying])::text[])))
 );
 
@@ -674,5 +676,5 @@ ALTER TABLE ONLY public.messages
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 4ZgeRUMJ9f6yvZtSIT2wRcQH3cMLtHiUFmLSf7xgXjPzjGerfFLiOdGOUf4gxFC
+\unrestrict bcb8k9g0z45oufOCKgzHoxK5RHHrhglClHe61fkJ4JiGzoGbgAhHMSXaRBElowg
 

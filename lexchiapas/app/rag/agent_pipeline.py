@@ -106,6 +106,7 @@ from langgraph.graph import END, START, StateGraph
 from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.llm.router import AllModelsFailedError, generate_with_fallback
+from app.llm.token_usage import begin_usage, get_usage
 from app.rag.agent_tools import (
     get_article,
     get_article_ambiguity,
@@ -786,6 +787,10 @@ def answer_question_agentic(
     las use sin volver a leer el archivo de config en medio del grafo.
     """
     start = time.monotonic()
+    # Fase 9.8/A10: inicia el acumulador de tokens del turno. Todas las
+    # llamadas LLM (decidir, reformular, grounding, generacion) lo alimentan
+    # via generate_with_fallback; se lee en el return principal.
+    begin_usage()
 
     # Small talk: mismo criterio que rag_pipeline.answer_question (ver ese
     # comentario para el hallazgo real completo) -- corre antes que
@@ -877,6 +882,13 @@ def answer_question_agentic(
     chunks = final_state.get("chunks") or []
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
+    # Fase 9.8/A10: tokens reales del turno. gen = suma de las generaciones
+    # (consistente aunque self-reflection genere mas de una vez); aux = todas
+    # las llamadas LLM auxiliares (decidir, reformular, grounding). Se usa el
+    # acumulador en vez de final_state["prompt_tokens"] (que solo tenia la
+    # ultima generacion) para que gen + aux sea el costo real completo.
+    gen_prompt, gen_completion, aux_prompt, aux_completion = get_usage()
+
     response = ChatResponse(
         answer=final_state["answer"],
         retrieved_chunks=[
@@ -894,8 +906,10 @@ def answer_question_agentic(
         ],
         llm_model=final_state.get("model_used"),
         grounded=final_state.get("grounded", False),
-        prompt_tokens=final_state.get("prompt_tokens"),
-        completion_tokens=final_state.get("completion_tokens"),
+        prompt_tokens=gen_prompt or None,
+        completion_tokens=gen_completion or None,
+        aux_prompt_tokens=aux_prompt or None,
+        aux_completion_tokens=aux_completion or None,
         grounding_classifier_model=final_state.get("grounding_classifier_model"),
         agent_trace=AgentTrace(
             route=final_state.get("decision", "ninguna"),

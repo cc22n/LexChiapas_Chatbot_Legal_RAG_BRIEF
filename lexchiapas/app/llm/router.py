@@ -1,5 +1,6 @@
 from app.config import get_ai_config
 from app.llm.providers import REQUEST_TIMEOUT_SECONDS, get_client_for_provider
+from app.llm.token_usage import record_usage
 
 
 class AllModelsFailedError(Exception):
@@ -90,6 +91,11 @@ def generate_with_fallback(
             usage = response.usage
             prompt_tokens = usage.prompt_tokens if usage else None
             completion_tokens = usage.completion_tokens if usage else None
+            # Fase 9.8/A10: contabiliza los tokens de ESTA llamada en el
+            # acumulador del turno (generacion vs auxiliar segun el scope). Es
+            # el unico choke point de generacion, asi que capturar aca cubre
+            # todas las llamadas sin tocar los call-sites auxiliares.
+            record_usage(prompt_tokens, completion_tokens)
             return response.choices[0].message.content, model, prompt_tokens, completion_tokens
         except Exception as exc:  # noqa: BLE001 - probamos la siguiente entrada
             last_error = exc

@@ -417,10 +417,22 @@ def metrics_performance(db: Session = Depends(get_db)) -> dict:
         )
     ).mappings().all()
 
+    # Fase 9.8/A10: ademas de los tokens de generacion, se suman los
+    # auxiliares (decidir/reformular/grounding/rewrite) y un total real. Las
+    # claves prompt_tokens/completion_tokens se conservan para no romper el
+    # dashboard existente.
     tokens_per_day = db.execute(
         text(
             """
-            SELECT date(created_at) AS day, sum(prompt_tokens) AS prompt_tokens, sum(completion_tokens) AS completion_tokens
+            SELECT date(created_at) AS day,
+                   sum(prompt_tokens) AS prompt_tokens,
+                   sum(completion_tokens) AS completion_tokens,
+                   sum(aux_prompt_tokens) AS aux_prompt_tokens,
+                   sum(aux_completion_tokens) AS aux_completion_tokens,
+                   sum(
+                     coalesce(prompt_tokens, 0) + coalesce(completion_tokens, 0)
+                     + coalesce(aux_prompt_tokens, 0) + coalesce(aux_completion_tokens, 0)
+                   ) AS total_tokens
             FROM messages
             WHERE role = 'assistant'
             GROUP BY day

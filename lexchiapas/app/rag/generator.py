@@ -1,5 +1,6 @@
 from app.config import get_ai_config
 from app.llm.router import generate_with_fallback
+from app.llm.token_usage import generation_scope
 from app.rag.retriever import RetrievedChunk
 from app.rag.vigencia import is_articulo_derogado
 
@@ -247,5 +248,8 @@ def generate_answer(
         return NO_ENCONTRADO, None, None, None
 
     messages = build_prompt(question, chunks, conversation_history=conversation_history, technical=technical)
-    answer, model_used, prompt_tokens, completion_tokens = generate_with_fallback(messages)
+    # Fase 9.8/A10: marca esta llamada como la generacion principal para que el
+    # acumulador de tokens la atribuya a la cubeta de generacion (no auxiliar).
+    with generation_scope():
+        answer, model_used, prompt_tokens, completion_tokens = generate_with_fallback(messages)
     return answer + DISCLAIMER, model_used, prompt_tokens, completion_tokens
