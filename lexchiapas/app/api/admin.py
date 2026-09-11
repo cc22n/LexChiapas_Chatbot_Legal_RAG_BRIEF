@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.admin_auth import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_cookie, require_admin
 from app.api.rate_limit import enforce_rate_limit
-from app.config import get_settings
+from app.config import get_settings, reload_ai_config
 from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
@@ -48,6 +48,11 @@ def admin_login(payload: AdminLoginRequest, request: Request, response: Response
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
+        # A3: Secure fuera de development (en local es HTTP, un Secure ahi
+        # impediria que la cookie viaje y romperia el login). En prod el
+        # deploy sirve por HTTPS, asi que la cookie de sesion admin nunca
+        # debe viajar en claro.
+        secure=settings.environment != "development",
     )
     return {"ok": True}
 
@@ -56,6 +61,17 @@ def admin_login(payload: AdminLoginRequest, request: Request, response: Response
 def admin_logout(response: Response) -> dict:
     response.delete_cookie(SESSION_COOKIE_NAME)
     return {"ok": True}
+
+
+@router.post("/config/reload", dependencies=[Depends(require_admin)])
+def admin_reload_config() -> dict:
+    """Recarga ai_config.json sin reiniciar el proceso (Fase 9.8/C2). Util
+    tras editar el archivo en un incidente -- ej. cambiar embeddings.model
+    cuando el actual muere (410), sin necesidad de un restart que corte el
+    servicio. get_ai_config() esta bajo @lru_cache; esto solo limpia ese
+    cache."""
+    reload_ai_config()
+    return {"ok": True, "reloaded": "ai_config.json"}
 
 
 @router.get("/documents", response_model=list[DocumentOut], dependencies=[Depends(require_admin)])

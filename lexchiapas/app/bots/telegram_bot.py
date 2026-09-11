@@ -17,7 +17,25 @@ from app.rag.guardrails import GREETING_RESPONSE
 # mano dentro del chat podian divergir con el tiempo (dos fuentes de verdad
 # del mismo saludo). Solo se le agrega el hint de /ayuda, especifico de
 # Telegram (no aplica al chat web, que no tiene comandos slash).
-WELCOME_MESSAGE = GREETING_RESPONSE + "\n\nUsa /ayuda para ver los comandos disponibles."
+#
+# Fase 9.8/C7: linea de privacidad. El bot persiste conversaciones (tabla
+# messages), asi que la bienvenida avisa que se guardan y apunta al aviso de
+# privacidad publicado en el frontend. Si FRONTEND_ORIGIN no esta configurado
+# (dev), se omite la URL para no mostrar un enlace roto.
+def _privacy_line() -> str:
+    origin = get_settings().frontend_origin.rstrip("/")
+    base = "Guardamos tus conversaciones para operar y mejorar el servicio."
+    if origin:
+        return f"{base} Aviso de privacidad: {origin}/privacidad"
+    return base
+
+
+WELCOME_MESSAGE = (
+    GREETING_RESPONSE
+    + "\n\nUsa /ayuda para ver los comandos disponibles."
+    + "\n\n"
+    + _privacy_line()
+)
 
 HELP_MESSAGE = (
     "Comandos:\n"

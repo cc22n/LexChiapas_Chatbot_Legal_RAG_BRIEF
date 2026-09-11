@@ -2,6 +2,7 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.models import Chunk, Document
 from app.rag.chunker import LegalChunk
@@ -72,6 +73,7 @@ def embed_and_store_chunks(db: Session, document: Document, legal_chunks: list[L
 
     Devuelve el numero de chunks creados (para ingestion_logs.chunks_created).
     """
+    current_model = get_ai_config()["embeddings"]["model"]
     created = 0
     for legal_chunk in legal_chunks:
         pieces = _split_content_for_embedding(legal_chunk.content)
@@ -96,6 +98,7 @@ def embed_and_store_chunks(db: Session, document: Document, legal_chunks: list[L
                     "partes_totales": len(pieces) if multipart else None,
                 },
                 embedding=embedding,
+                embedding_model=current_model,
             )
             db.add(chunk)
             created += 1

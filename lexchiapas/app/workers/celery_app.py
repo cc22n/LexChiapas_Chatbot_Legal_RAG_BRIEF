@@ -2,6 +2,7 @@ import redis
 import kombu.transport.redis as _kombu_redis
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
 
 from app.config import get_settings
 
@@ -42,8 +43,27 @@ celery_app = Celery(
     "lexchiapas",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.workers.ingestion_tasks", "app.workers.update_tasks", "app.workers.evaluation_tasks"],
+    include=[
+        "app.workers.ingestion_tasks",
+        "app.workers.update_tasks",
+        "app.workers.evaluation_tasks",
+        "app.workers.alerting_tasks",
+    ],
 )
+
+
+# A7 (auditoria 2026-09-09): bajo el modelo prefork de Celery, cada proceso
+# worker es un fork del padre y HEREDA el engine/pool de SQLAlchemy creado a
+# nivel de modulo en app.database -- las conexiones TCP a Postgres quedan
+# compartidas entre procesos, produciendo errores intermitentes ("SSL error",
+# "connection already closed") indistinguibles de un bug de aplicacion. El
+# fix estandar: descartar el pool heredado al arrancar cada worker, para que
+# cada proceso abra sus PROPIAS conexiones de forma perezosa.
+@worker_process_init.connect
+def _dispose_inherited_engine(**_kwargs) -> None:
+    from app.database import engine
+
+    engine.dispose()
 
 # app.workers.evaluation_tasks.run_golden_dataset_task (WEB_FRONTEND_PLAN.md
 # seccion 3.3) a proposito NO tiene entrada aca -- disparo manual unicamente
@@ -54,6 +74,13 @@ celery_app.conf.beat_schedule = {
     "actualizar-leyes-diario": {
         "task": "app.workers.update_tasks.check_for_law_updates",
         "schedule": crontab(hour=3, minute=0),
+    },
+    # Fase 9.8/C3: canario de salud cada 5 min (embeddings + pico de errores
+    # de sistema) -> alerta a Telegram. Barato (1 llamada de embeddings por
+    # tick) y sin dependencias de pago.
+    "canario-salud-5min": {
+        "task": "app.workers.alerting_tasks.health_canary",
+        "schedule": crontab(minute="*/5"),
     },
 }
 celery_app.conf.timezone = "America/Mexico_City"

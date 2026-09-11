@@ -9,15 +9,40 @@ el frontend web (`../lexchiapas-web/`).
 
 ```bash
 pip install -r requirements.txt --break-system-packages
-cp .env.example .env   # llenar NVIDIA_API_KEY, DATABASE_URL, etc.
-alembic upgrade head    # aplica el esquema (documents, chunks, conversations,
-                         # messages, feedback, legal_relations, ingestion_logs)
+cp .env.example .env   # llenar NVIDIA_API_KEY, DATABASE_URL, SECRET_KEY, etc.
 ```
 
-PostgreSQL necesita la extension `pgvector` instalada antes de correr
-migraciones (`CREATE EXTENSION vector;`). Las migraciones viven en
-`alembic/` (adoptado tras el andamiaje inicial via SQLAlchemy directo, ver
-`PLAN.md` para el detalle del baseline).
+### Crear el esquema en una base NUEVA
+
+El esquema completo esta versionado en `schema.sql` (dump generado con
+`pg_dump --schema-only`, incluye `CREATE EXTENSION vector`, las tablas, y el
+indice HNSW). En una base de datos VACIA:
+
+```bash
+psql "$DATABASE_URL" -f schema.sql   # crea extension + tablas + indices
+alembic stamp head                    # marca la DB como al dia con Alembic
+```
+
+IMPORTANTE: NO uses `alembic upgrade head` para crear el esquema desde cero.
+La revision baseline (`cf62d1f2007f`) es un `pass` intencional (el esquema
+original se creo a mano antes de adoptar Alembic; ver su docstring) -- correr
+`upgrade head` contra una base vacia NO crea ninguna tabla. `schema.sql` es la
+fuente reproducible del esquema; Alembic solo maneja los cambios INCREMENTALES
+sobre esa base.
+
+Para regenerar `schema.sql` tras cambios de esquema:
+`pg_dump --schema-only --no-owner --no-privileges "$DATABASE_URL" > schema.sql`.
+
+### Actualizar el esquema de una base EXISTENTE
+
+```bash
+alembic upgrade head   # aplica solo las migraciones incrementales pendientes
+```
+
+PostgreSQL necesita la extension `pgvector` (>= 0.8) instalada; `schema.sql`
+ya emite `CREATE EXTENSION IF NOT EXISTS vector`. Las migraciones
+incrementales viven en `alembic/` (ver `PLAN.md` para el detalle del
+baseline).
 
 ## Correr la API
 

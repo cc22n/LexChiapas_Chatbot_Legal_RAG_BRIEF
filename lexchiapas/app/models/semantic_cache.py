@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Integer, Text, func
+from sqlalchemy import DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.models.chunk import EMBEDDING_DIMENSION
+from app.models.chunk import CURRENT_EMBEDDING_MODEL, EMBEDDING_DIMENSION
 
 
 class SemanticCacheEntry(Base):
@@ -15,6 +15,15 @@ class SemanticCacheEntry(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     question_embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSION), nullable=False)
+    # Modelo de embeddings con el que se genero question_embedding. lookup()
+    # exige que coincida con el modelo ACTUAL (ai_config.json embeddings.model)
+    # -- la firma de corpus (count/max_id) NO cambia al migrar de modelo con la
+    # misma dimension, asi que sin esta columna una entrada vieja embebida con
+    # otro modelo seguiria siendo elegible y la comparacion coseno entre
+    # espacios vectoriales distintos no es valida (Fase 9.8 / hallazgo C5).
+    embedding_model: Mapped[str] = mapped_column(
+        String(200), nullable=False, server_default=CURRENT_EMBEDDING_MODEL
+    )
     # ChatResponse completo serializado (answer, retrieved_chunks, llm_model,
     # grounded, prompt_tokens, completion_tokens, system_error) -- se
     # devuelve tal cual en un hit, sin volver a llamar retrieval ni LLM.

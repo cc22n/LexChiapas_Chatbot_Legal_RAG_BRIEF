@@ -48,11 +48,37 @@ def test_production_rejects_the_development_database_url_default():
         )
 
 
+def test_production_requires_secret_key(monkeypatch):
+    # Fase 9.8 (pentest MEDIA): sin SECRET_KEY, las cookies de sesion admin se
+    # firmarian con admin_api_key -> forja offline si esa key se filtra.
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    with pytest.raises(ValidationError, match="secret_key"):
+        Settings(
+            environment="production",
+            nvidia_api_key="nvapi-real",
+            admin_api_key="real-admin-key",
+            database_url="postgresql+psycopg://real:real@real-host:5432/lexchiapas",
+            secret_key="",
+        )
+
+
+def test_production_rejects_secret_key_equal_to_admin_api_key():
+    with pytest.raises(ValidationError, match="secret_key"):
+        Settings(
+            environment="production",
+            nvidia_api_key="nvapi-real",
+            admin_api_key="real-admin-key",
+            database_url="postgresql+psycopg://real:real@real-host:5432/lexchiapas",
+            secret_key="real-admin-key",  # igual a admin_api_key -> rechazado
+        )
+
+
 def test_production_with_all_critical_config_set_does_not_raise():
     settings = Settings(
         environment="production",
         nvidia_api_key="nvapi-real",
         admin_api_key="real-admin-key",
         database_url="postgresql+psycopg://real:real@real-host:5432/lexchiapas",
+        secret_key="una-secret-key-distinta-y-larga",
     )
     assert settings.environment == "production"

@@ -33,10 +33,17 @@ def lookup(db: Session, query_embedding: list[float]) -> ChatResponse | None:
     particular, y cachearla por similitud de embedding sola reutilizaria
     una respuesta de un contexto distinto sin darse cuenta.
     """
-    ai_config = get_ai_config()["semantic_cache"]
+    full_config = get_ai_config()
+    ai_config = full_config["semantic_cache"]
     if not ai_config.get("enabled", True):
         return None
 
+    # Fase 9.8 (hallazgo C5): un hit solo es valido si la entrada se embebio
+    # con el MISMO modelo que usamos hoy. La firma de corpus (count/max_id) no
+    # cambia al migrar de modelo con igual dimension, asi que sin este filtro
+    # una entrada vieja de otro modelo pasaria el WHERE y se compararia coseno
+    # entre espacios vectoriales incompatibles.
+    current_model = full_config["embeddings"]["model"]
     count, max_id = corpus_signature(db)
     query_vector = to_vector_literal(query_embedding)
     row = db.execute(
@@ -47,6 +54,7 @@ def lookup(db: Session, query_embedding: list[float]) -> ChatResponse | None:
             WHERE created_at > now() - make_interval(days => :ttl_days)
               AND corpus_chunk_count = :corpus_count
               AND corpus_max_chunk_id = :corpus_max_id
+              AND embedding_model = :current_model
               AND 1 - (question_embedding <=> CAST(:query_vector AS vector)) > :threshold
             ORDER BY question_embedding <=> CAST(:query_vector AS vector)
             LIMIT 1
@@ -58,6 +66,7 @@ def lookup(db: Session, query_embedding: list[float]) -> ChatResponse | None:
             "ttl_days": ai_config["ttl_days"],
             "corpus_count": count,
             "corpus_max_id": max_id,
+            "current_model": current_model,
         },
     ).first()
 
@@ -82,6 +91,7 @@ def store(db: Session, question_text: str, query_embedding: list[float], respons
     a llamar al LLM principal (ver app.rag.generator.generate_answer). Solo
     se llama con preguntas SIN historial de conversacion (mismo criterio
     que lookup())."""
+    current_model = get_ai_config()["embeddings"]["model"]
     count, max_id = corpus_signature(db)
     entry = SemanticCacheEntry(
         question_text=question_text,
@@ -89,6 +99,7 @@ def store(db: Session, question_text: str, query_embedding: list[float], respons
         response_json=response.model_dump(mode="json"),
         corpus_chunk_count=count,
         corpus_max_chunk_id=max_id,
+        embedding_model=current_model,
     )
     db.add(entry)
     db.commit()

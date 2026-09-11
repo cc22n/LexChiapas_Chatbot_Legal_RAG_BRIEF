@@ -118,8 +118,10 @@ from app.rag.agent_tools import (
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
+from app.rag.legal_synonyms import expand_legal_synonyms
 from app.rag.query_rewriting import CLARIFICATION_QUESTION_MARKER, rewrite_query
 from app.rag.retriever import RetrievedChunk
+from app.rag.semantic_cache import lookup as cache_lookup, store as cache_store
 from app.rag.vigencia import is_articulo_derogado
 from app.schemas.chat import AgentTrace, ChatResponse, RetrievedChunk as RetrievedChunkSchema
 
@@ -427,6 +429,19 @@ def _node_buscar(state: AgentState) -> dict:
         # muchas relaciones mas recientes en OTROS articulos).
         relations = query_graph(db, state["law_name"], articulo=state.get("articulo"))
         return {"chunks": relations_to_chunks(relations), "intentos": intentos}
+
+    # Fase 9.8 (C6): expansion de sinonimos legales, SOLO en las ramas de
+    # busqueda semantica (general/por-ley). Portada de
+    # rag_pipeline.answer_question (Fase 3.7): consultas coloquiales que no
+    # comparten vocabulario con el articulo que las responde (ej. "sin
+    # testamento" vs. el termino legal "sucesion legitima"). Se aplica sobre
+    # search_text (no sobre `question`, que sigue crudo para el ranking de
+    # citas) y se re-embebe solo si de verdad expandio, igual patron que el
+    # pipeline lineal -- no toca las rutas articulo_especifico/historial_ley,
+    # que resuelven por nombre/numero exacto y no se benefician de sinonimos.
+    search_text, was_expanded = expand_legal_synonyms(search_text)
+    if was_expanded:
+        query_embedding = embed_text(search_text)
 
     if decision == "busqueda_por_ley":
         # Etapa 2: en un reintento se mantiene el MISMO law_name que decidio
@@ -746,18 +761,23 @@ def answer_question_agentic(
     app.bots.conversation_store.handle_turn). `technical` se inyecta tal
     cual en el AgentState inicial, solo lo usa _node_generar.
 
-    Alcance de Etapa 1 (a proposito, ver docstring de modulo): NO incluye
-    expansion de sinonimos legales, HyDE, ni cache semantico -- esas son
-    optimizaciones ortogonales a la decision del agente, evaluadas por
-    separado. Query rewriting (app.rag.query_rewriting.rewrite_query) SI se
-    aplica (agregado 2026-08-04, ver BUG REAL mas abajo): sin esto, un
-    seguimiento corto en una conversacion llegaba SIN CONTEXTO tanto a
-    "decidir" como a "buscar", degradando cualquier pregunta de seguimiento
-    con agentic_rag.enabled=true (ya en produccion) -- exactamente el mismo
-    bug que motivo rewrite_query en rag_pipeline.answer_question (Fase 6),
-    pero nunca portado aca hasta ahora. Lo que SI se preserva sin excepcion
-    desde el inicio es Capa 1 de guardrails y ambos gates anti-alucinacion
-    (ver invariantes en el docstring de modulo).
+    Optimizaciones portadas del pipeline lineal:
+    - Query rewriting (app.rag.query_rewriting.rewrite_query, agregado
+      2026-08-04, ver BUG REAL mas abajo): sin esto un seguimiento corto en
+      una conversacion llegaba SIN CONTEXTO tanto a "decidir" como a
+      "buscar".
+    - Cache semantico (app.rag.semantic_cache, Fase 9.8/C6): lookup al inicio
+      (solo preguntas sin historial) y store al final, igual criterio que
+      rag_pipeline.answer_question. Antes estaba MUERTO en esta ruta pese a
+      semantic_cache.enabled=true -- con agentic_rag.enabled=true en
+      produccion, ninguna pregunta pagaba/poblaba el cache. Seguro ante
+      cambio de modelo de embeddings via la columna embedding_model (C5).
+    - Expansion de sinonimos legales (app.rag.legal_synonyms, Fase 9.8/C6):
+      aplicada en _node_buscar sobre las rutas de busqueda semantica.
+    HyDE NO se porta (medido que empeora retrieval con el modelo de
+    embeddings actual, ver ai_config.json "hyde._note_migracion_2026_08_27").
+    Capa 1 de guardrails y ambos gates anti-alucinacion se preservan sin
+    excepcion desde el inicio (ver invariantes en el docstring de modulo).
 
     Etapa 2 (self-reflection, ver docstring de modulo): bandera
     `ai_config.json` "agentic_rag.self_reflection.enabled" (default False) +
@@ -807,6 +827,23 @@ def answer_question_agentic(
             completion_tokens=None,
         )
         return response, elapsed_ms
+
+    # Cache semantico (Fase 9.8/C6, ver app.rag.semantic_cache): SOLO para
+    # preguntas sin historial (un seguimiento corto depende del contexto de
+    # ESA conversacion, no cacheable por similitud de embedding sola). Se usa
+    # el embedding de la pregunta ORIGINAL (antes de rewrite/sinonimos) para
+    # que lookup y store comparen sobre la misma base -- identico criterio que
+    # rag_pipeline.answer_question.
+    original_query_embedding = query_embedding
+    if not conversation_history:
+        cached = cache_lookup(db, original_query_embedding)
+        if cached is not None:
+            elapsed_ms = int((time.monotonic() - start) * 1000)
+            # search_time_ms/generation_time_ms del objeto cacheado reflejan
+            # CUANDO SE GENERO originalmente, no este hit (mismo reset que el
+            # pipeline lineal, para no contaminar avg/p95 de /admin/metrics).
+            cached = cached.model_copy(update={"search_time_ms": None, "generation_time_ms": None})
+            return cached, elapsed_ms
 
     # BUG REAL (2026-08-04, auditoria de integracion LLM): esta linea antes
     # ponia `search_text` = `question` sin cambios -- el agente (a diferencia
@@ -868,4 +905,12 @@ def answer_question_agentic(
             self_reflection_triggered=final_state.get("intentos", 0) > 1,
         ),
     )
+
+    # Cache store (Fase 9.8/C6): mismo criterio que lookup arriba y que
+    # rag_pipeline.answer_question -- solo preguntas sin historial, con el
+    # embedding de la pregunta ORIGINAL. Se cachean grounded True y False
+    # (una pregunta fuera del corpus tambien cuesta busqueda cada vez).
+    if not conversation_history:
+        cache_store(db, question, original_query_embedding, response)
+
     return response, elapsed_ms

@@ -86,17 +86,21 @@ def handle_turn(
     )
     db.commit()
 
-    # Fase 7 Etapa 1 (agentic RAG, ver app.rag.agent_pipeline): bandera
-    # config-driven en ai_config.json "agentic_rag.enabled" (default false)
-    # para elegir entre el pipeline lineal ya afinado y la ruta agentica
-    # nueva sin tocar codigo. Ambas funciones comparten la misma firma
-    # (db, question, conversation_history) -> (ChatResponse, elapsed_ms).
-    if get_ai_config().get("agentic_rag", {}).get("enabled", False):
-        pipeline_fn = answer_question_agentic
-    else:
-        pipeline_fn = answer_question
-
     try:
+        # Fase 7 Etapa 1 (agentic RAG, ver app.rag.agent_pipeline): bandera
+        # config-driven en ai_config.json "agentic_rag.enabled" (default
+        # false) para elegir entre el pipeline lineal ya afinado y la ruta
+        # agentica nueva sin tocar codigo. Ambas funciones comparten la misma
+        # firma (db, question, conversation_history) -> (ChatResponse,
+        # elapsed_ms). A5: la lectura de config va DENTRO del try -- un
+        # ai_config.json malformado (AIConfigError) degrada con el mensaje de
+        # error del sistema en vez de un 500 crudo, igual que cualquier otro
+        # fallo del turno.
+        if get_ai_config().get("agentic_rag", {}).get("enabled", False):
+            pipeline_fn = answer_question_agentic
+        else:
+            pipeline_fn = answer_question
+
         response, elapsed_ms = pipeline_fn(db, text, conversation_history=history, technical=technical)
     except Exception as exc:
         # Antes de este fix, una excepcion aqui (NVIDIA caido, DB, bug de

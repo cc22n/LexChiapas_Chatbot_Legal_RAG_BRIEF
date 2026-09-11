@@ -121,6 +121,35 @@ async def limit_body_size(request: Request, call_next):
 
 settings = get_settings()
 
+# Fase 9.8/A4: headers de seguridad. Ausentes por completo hasta ahora (el
+# frontend Next.js pone los suyos via next.config.ts). Para una API JSON el
+# valor principal es HSTS + anti-sniffing + anti-clickjacking; la CSP estricta
+# aplica a las respuestas JSON pero se exceptua en /docs|/redoc|/openapi.json,
+# que SI sirven HTML+scripts de CDN (Swagger UI) y una CSP default-src 'none'
+# los romperia.
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    if not request.url.path.startswith(_DOCS_PATHS):
+        response.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        )
+    # HSTS solo fuera de development: en local se sirve por HTTP (el navegador
+    # igual lo ignoraria) y encenderlo podria fijar HSTS para localhost.
+    if settings.environment != "development":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
 allowed_origins = []
 if settings.frontend_origin:
     # Si FRONTEND_ORIGIN esta definido en .env, se usa ese origen especifico.

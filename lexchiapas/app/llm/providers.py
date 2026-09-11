@@ -1,7 +1,14 @@
 import logging
 import time
 
-from openai import APIConnectionError, APITimeoutError, InternalServerError, OpenAI, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.config import get_ai_config, get_settings
 
@@ -92,6 +99,17 @@ _EMBED_MAX_ATTEMPTS = 3
 _EMBED_RETRY_BACKOFF_SECONDS = (1.0, 2.0)
 _EMBED_RETRYABLE_ERRORS = (APITimeoutError, APIConnectionError, RateLimitError, InternalServerError)
 
+# Fase 9.8 (C2): estados HTTP que significan "el modelo de embeddings ya no
+# existe / fue retirado", NO un fallo transitorio. Es exactamente lo que
+# tumbo produccion el 2026-08-25 (nvidia/nv-embedqa-e5-v5 respondio 410 Gone
+# tras su fin de vida real) y no se detecto en ~2 dias porque no habia alerta
+# ni un log distinguible del ruido de 429/5xx. NO se reintenta (un 4xx
+# permanente fallaria identico); lo que faltaba no era retry sino DETECCION:
+# se emite un log ERROR con el marcador EMBEDDING_MODEL_DEAD que el canario
+# de la tarea de alerta (app.workers) busca para avisar por Telegram.
+_EMBED_MODEL_DEAD_STATUSES = (404, 410)
+EMBEDDING_MODEL_DEAD_MARKER = "EMBEDDING_MODEL_DEAD"
+
 
 def embed_text(text: str, input_type: str = "query") -> list[float]:
     """input_type: 'query' para preguntas del usuario, 'passage' para chunks
@@ -128,5 +146,18 @@ def embed_text(text: str, input_type: str = "query") -> list[float]:
                 attempt, _EMBED_MAX_ATTEMPTS, type(exc).__name__, exc, backoff,
             )
             time.sleep(backoff)
+        except APIStatusError as exc:
+            # RateLimitError(429)/InternalServerError(5xx) ya los captura el
+            # except de arriba (son subclases y van primero); aca solo caen
+            # los 4xx no transitorios. Si es 404/410 el modelo esta muerto:
+            # log distinguible para la alerta, y re-lanzar sin reintentar.
+            if getattr(exc, "status_code", None) in _EMBED_MODEL_DEAD_STATUSES:
+                logger.error(
+                    "%s: el modelo de embeddings %r respondio HTTP %s -- probablemente "
+                    "retirado/fin de vida. TODO turno de RAG falla hasta cambiar "
+                    "embeddings.model en ai_config.json y re-embeber el corpus. %s",
+                    EMBEDDING_MODEL_DEAD_MARKER, model, exc.status_code, exc,
+                )
+            raise
 
     raise AssertionError("unreachable")  # el loop siempre retorna o re-lanza en el ultimo intento

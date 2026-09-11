@@ -17,6 +17,15 @@ EMBEDDING_DIMENSION = 1024  # debe coincidir con app/config.py -> ai_config.json
 # vectorial de un modelo distinto no es comparable aunque coincida la
 # dimension.
 
+# CURRENT_EMBEDDING_MODEL debe coincidir con ai_config.json embeddings.model.
+# La fuente de verdad en runtime es ai_config.json (lo lee embed_text y la
+# ingesta al poblar chunks.embedding_model); esta constante solo alimenta el
+# server_default de la columna, como red para inserts directos (tests) que no
+# lo especifican. pgvector solo protege contra cambio de DIMENSION, no de
+# modelo con igual dimension -- registrar el modelo por fila permite detectar
+# un corpus con embeddings de modelos mezclados (Fase 9.8 / hallazgo C5).
+CURRENT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
+
 
 class Chunk(Base):
     __tablename__ = "chunks"
@@ -45,6 +54,9 @@ class Chunk(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     chunk_metadata: Mapped[dict | None] = mapped_column(JSONB)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSION))
+    embedding_model: Mapped[str] = mapped_column(
+        String(200), nullable=False, server_default=CURRENT_EMBEDDING_MODEL
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     document = relationship("Document", back_populates="chunks")
