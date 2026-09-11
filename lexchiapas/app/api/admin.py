@@ -5,7 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.admin_auth import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_cookie, require_admin
+from app.api.admin_auth import (
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE_SECONDS,
+    create_session_cookie,
+    require_admin,
+    revoke_session,
+)
 from app.api.rate_limit import enforce_rate_limit
 from app.config import get_settings, reload_ai_config
 from app.database import get_db
@@ -58,7 +64,13 @@ def admin_login(payload: AdminLoginRequest, request: Request, response: Response
 
 
 @router.post("/logout")
-def admin_logout(response: Response) -> dict:
+def admin_logout(request: Request, response: Response) -> dict:
+    # Fase 9.8 (pentest MEDIA): ademas de borrar la cookie del navegador, se
+    # revoca server-side (blocklist en Redis) para que un valor de cookie ya
+    # copiado deje de ser aceptado por require_admin.
+    session_cookie = request.cookies.get(SESSION_COOKIE_NAME)
+    if session_cookie:
+        revoke_session(session_cookie)
     response.delete_cookie(SESSION_COOKIE_NAME)
     return {"ok": True}
 

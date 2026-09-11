@@ -13,10 +13,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const TITLE = "LexChiapas - Asistente legal de Chiapas";
+const DESCRIPTION =
+  "Chatbot que responde preguntas sobre leyes y reglamentos del Estado de Chiapas, citando la ley y el articulo.";
+
+// Fase 9.8/A12: metadataBase + OpenGraph/Twitter para previews al compartir el
+// enlace. Sin imagen OG a proposito (no se inventa un asset); si mas adelante
+// se agrega un /public/og.png, referenciarlo aca en openGraph.images.
 export const metadata: Metadata = {
-  title: "LexChiapas - Asistente legal de Chiapas",
-  description:
-    "Chatbot que responde preguntas sobre leyes y reglamentos del Estado de Chiapas, citando la ley y el articulo.",
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    type: "website",
+    locale: "es_MX",
+    siteName: "LexChiapas",
+  },
+  twitter: {
+    card: "summary",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({

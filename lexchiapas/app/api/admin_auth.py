@@ -1,14 +1,70 @@
 import hashlib
 import hmac
+import logging
 import time
 
+import redis
 from fastapi import Header, HTTPException, Request
 
 from app.api.rate_limit import enforce_rate_limit
 from app.config import get_settings
 
+logger = logging.getLogger("lexchiapas.admin_auth")
+
 SESSION_COOKIE_NAME = "lexchiapas_admin_session"
 SESSION_MAX_AGE_SECONDS = 24 * 3600
+
+_redis_client: redis.Redis | None = None
+
+
+def _get_redis_client() -> redis.Redis:
+    # Mismo patron/racional que app.rag.memory / app.workers.alerting_tasks
+    # (RESP2 + timeouts explicitos por el redis-server 5.0.14 local).
+    global _redis_client
+    if _redis_client is None:
+        settings = get_settings()
+        _redis_client = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            protocol=2,
+            socket_timeout=3,
+            socket_connect_timeout=3,
+        )
+    return _redis_client
+
+
+def _revocation_key(token: str) -> str:
+    # sha256 del valor completo de la cookie: revoca esa cookie puntual sin
+    # tener que agregar un jti al formato firmado (Fase 9.8, pentest MEDIA).
+    return "admin:revoked:" + hashlib.sha256(token.encode()).hexdigest()
+
+
+def revoke_session(token: str) -> None:
+    """Marca una cookie de sesion como revocada en Redis, con TTL = vida
+    restante de la cookie (pasado ese punto ya expira por edad de todas
+    formas). Fail-open: si Redis no responde, se loguea y no se lanza -- la
+    cookie igual caduca sola en <=24h."""
+    try:
+        timestamp_str, _ = token.split(".", 1)
+        remaining = SESSION_MAX_AGE_SECONDS - (time.time() - int(timestamp_str))
+    except (ValueError, TypeError):
+        remaining = SESSION_MAX_AGE_SECONDS
+    ttl = max(1, int(remaining))
+    try:
+        _get_redis_client().set(_revocation_key(token), "1", ex=ttl)
+    except Exception as exc:  # noqa: BLE001 - revocacion best-effort, ver docstring
+        logger.warning("admin_auth: no se pudo revocar la sesion en Redis: %s", exc)
+
+
+def _session_is_revoked(token: str) -> bool:
+    """True si la cookie esta en la blocklist. Fail-open ante Redis caido
+    (coherente con la postura best-effort de Redis en el repo): un Redis caido
+    no debe bloquear a un admin legitimo; la cookie igual expira por edad."""
+    try:
+        return _get_redis_client().exists(_revocation_key(token)) > 0
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("admin_auth: no se pudo consultar la blocklist en Redis: %s", exc)
+        return False
 
 
 def _signing_key() -> str:
@@ -37,7 +93,14 @@ def _session_cookie_is_valid(token: str) -> bool:
         return False
 
     age_seconds = time.time() - int(timestamp_str)
-    return 0 <= age_seconds <= SESSION_MAX_AGE_SECONDS
+    if not (0 <= age_seconds <= SESSION_MAX_AGE_SECONDS):
+        return False
+
+    # Fase 9.8 (pentest MEDIA): incluso una cookie con firma y edad validas
+    # queda rechazada si se hizo logout con ella -- sin esto, "cerrar sesion"
+    # solo borraba la cookie del navegador pero el valor copiado seguia valido
+    # hasta 24h.
+    return not _session_is_revoked(token)
 
 
 def require_admin(

@@ -130,3 +130,46 @@ def test_require_admin_rate_limit_does_not_block_cookie_path():
 
     token = create_session_cookie()
     require_admin(_FakeRequest(cookies={SESSION_COOKIE_NAME: token}, client_host=ip), x_admin_api_key=None)
+
+
+# --- Revocacion de logout (Fase 9.8, pentest MEDIA) ---
+
+
+class _FakeRedis:
+    """Redis en memoria minimo para probar la blocklist sin depender del
+    redis-server real (que puede o no estar corriendo en el entorno de test)."""
+
+    def __init__(self):
+        self.store: dict[str, str] = {}
+
+    def set(self, key, value, ex=None, nx=False):
+        self.store[key] = value
+        return True
+
+    def exists(self, key):
+        return 1 if key in self.store else 0
+
+
+def test_revoked_session_cookie_is_rejected(monkeypatch):
+    fake = _FakeRedis()
+    monkeypatch.setattr(admin_auth, "_get_redis_client", lambda: fake)
+
+    token = create_session_cookie()
+    assert admin_auth._session_cookie_is_valid(token)  # valida antes de revocar
+
+    admin_auth.revoke_session(token)
+    assert not admin_auth._session_cookie_is_valid(token)  # ya no, tras logout
+
+
+def test_revocation_fails_open_when_redis_unavailable(monkeypatch):
+    def _boom():
+        raise ConnectionError("simulado: Redis no disponible")
+
+    monkeypatch.setattr(admin_auth, "_get_redis_client", _boom)
+
+    token = create_session_cookie()
+    # revoke_session no debe lanzar aunque Redis este caido...
+    admin_auth.revoke_session(token)
+    # ...y la validacion hace fail-open: un Redis caido no bloquea a un admin
+    # legitimo (la cookie igual expira sola por edad).
+    assert admin_auth._session_cookie_is_valid(token)

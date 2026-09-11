@@ -75,8 +75,21 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+      {/* Encabezado para estructura de landmark/heading; oculto visualmente
+          (el chat no necesita un titulo visible) pero anunciado por lectores
+          de pantalla. Fase 9.8/A12. */}
+      <h1 className="sr-only">Chat de LexChiapas, asistente legal de Chiapas</h1>
+      {/* role="log" + aria-live="polite": un lector de pantalla anuncia las
+          respuestas nuevas y el estado "Buscando..." (que vive dentro) sin
+          robar el foco. Fase 9.8/A12 (WCAG 4.1.3). */}
+      <div
+        className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-busy={loading}
+      >
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} sessionId={sessionId} />
         ))}
@@ -130,6 +143,6 @@ export default function Home() {
           Explorar relaciones entre leyes
         </Link>
       </p>
-    </div>
+    </main>
   );
 }

@@ -62,6 +62,28 @@ celery -A app.workers.celery_app worker --loglevel=info
 celery -A app.workers.celery_app beat --loglevel=info
 ```
 
+El `worker` procesa la ingesta/actualizacion de leyes; el `beat` dispara las
+tareas programadas: actualizacion diaria de leyes y el canario de salud cada
+5 min (`app/workers/alerting_tasks.py`, alerta a Telegram si los embeddings
+mueren o hay un pico de errores -- requiere `ADMIN_TELEGRAM_CHAT_ID`). En
+deploy (Procfile) ambos procesos ya estan declarados como `worker:` y `beat:`.
+
+## Registrar el webhook de Telegram (deploy)
+
+El endpoint `POST /webhook/telegram` es fail-closed: solo acepta requests con
+el header `X-Telegram-Bot-Api-Secret-Token` igual a `TELEGRAM_WEBHOOK_SECRET`.
+Telegram solo manda ese header si el webhook se registro con `secret_token`,
+asi que tras desplegar (o al cambiar la URL/secret) hay que correr una vez:
+
+```bash
+python scripts/set_telegram_webhook.py https://tu-dominio.com/webhook/telegram
+```
+
+El script toma `TELEGRAM_BOT_TOKEN` y `TELEGRAM_WEBHOOK_SECRET` del `.env`. Sin
+este paso, Telegram nunca manda el header esperado y todos los updates se
+rechazan con 401. (En desarrollo local el bot puede correr en modo polling en
+vez de webhook; ver `app/bots/telegram_bot.py`.)
+
 ## Tests
 
 ```bash
