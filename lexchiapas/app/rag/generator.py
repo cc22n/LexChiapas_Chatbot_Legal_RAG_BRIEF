@@ -252,4 +252,6 @@ def generate_answer(
     # acumulador de tokens la atribuya a la cubeta de generacion (no auxiliar).
     with generation_scope():
         answer, model_used, prompt_tokens, completion_tokens = generate_with_fallback(messages)
-    return answer + DISCLAIMER, model_used, prompt_tokens, completion_tokens
+    # content puede ser None si el proveedor bloquea la respuesta por moderacion
+    # (filtro de contenido en temas penales); sin esto, None + str lanza TypeError.
+    return (answer or NO_ENCONTRADO) + DISCLAIMER, model_used, prompt_tokens, completion_tokens
