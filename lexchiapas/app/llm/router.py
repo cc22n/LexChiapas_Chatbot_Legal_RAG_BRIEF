@@ -1,10 +1,31 @@
+import time
+
+from openai import RateLimitError
+
 from app.config import get_ai_config
 from app.llm.providers import REQUEST_TIMEOUT_SECONDS, get_client_for_provider
 from app.llm.token_usage import record_usage
 
+# ALT-01 (auditoria 2026-10-21): los 3 modelos de NVIDIA NIM comparten UNA
+# cuenta/cuota, asi que un 429 en uno implica 429 en los otros dos; sin pausa
+# la cascada caia en ~20 ms sobre OpenAI/xAI (creditos limitados de $5).
+# Ante un 429 se espera un poco (respetando Retry-After, con tope) y se
+# reintenta UNA vez el mismo modelo; si sigue en 429 se descartan los demas
+# modelos de ESE proveedor en esta llamada.
+RATE_LIMIT_DEFAULT_BACKOFF_SECONDS = 1.5
+RATE_LIMIT_MAX_BACKOFF_SECONDS = 3.0
+
 
 class AllModelsFailedError(Exception):
     pass
+
+
+def _rate_limit_backoff_seconds(exc: RateLimitError) -> float:
+    try:
+        retry_after = float(exc.response.headers.get("retry-after", ""))
+    except (AttributeError, TypeError, ValueError):
+        return RATE_LIMIT_DEFAULT_BACKOFF_SECONDS
+    return min(max(retry_after, 0.0), RATE_LIMIT_MAX_BACKOFF_SECONDS)
 
 
 def get_primary_model() -> str:
@@ -74,9 +95,12 @@ def generate_with_fallback(
     timeout = llm_config.get("fast_timeout_seconds", REQUEST_TIMEOUT_SECONDS) if fast else REQUEST_TIMEOUT_SECONDS
 
     last_error: Exception | None = None
+    rate_limited_providers: set[str] = set()
     for entry in llm_config["fallback_order"]:
         provider = entry["provider"]
         model = entry["model"]
+        if provider in rate_limited_providers:
+            continue
         try:
             client = get_client_for_provider(provider, timeout=timeout)
             create_kwargs = {
@@ -87,7 +111,15 @@ def generate_with_fallback(
             }
             if response_format is not None:
                 create_kwargs["response_format"] = response_format
-            response = client.chat.completions.create(**create_kwargs)
+            try:
+                response = client.chat.completions.create(**create_kwargs)
+            except RateLimitError as rate_exc:
+                time.sleep(_rate_limit_backoff_seconds(rate_exc))
+                try:
+                    response = client.chat.completions.create(**create_kwargs)
+                except RateLimitError:
+                    rate_limited_providers.add(provider)
+                    raise
             usage = response.usage
             prompt_tokens = usage.prompt_tokens if usage else None
             completion_tokens = usage.completion_tokens if usage else None

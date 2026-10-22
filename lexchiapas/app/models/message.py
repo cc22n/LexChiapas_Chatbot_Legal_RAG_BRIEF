@@ -17,7 +17,7 @@ class Message(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"))
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # user/assistant
     content: Mapped[str] = mapped_column(Text, nullable=False)
     retrieved_chunks: Mapped[dict | None] = mapped_column(JSONB)
@@ -89,7 +89,7 @@ class Message(Base):
     # app.rag.agent_pipeline.answer_question_agentic) -- viene directo de
     # ChatResponse.agent_trace.model_dump(). None en el pipeline lineal.
     agent_trace: Mapped[dict | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     conversation = relationship("Conversation", back_populates="messages")
     feedback = relationship("Feedback", back_populates="message", cascade="all, delete-orphan")

@@ -31,11 +31,11 @@ class LegalRelation(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    from_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
-    from_chunk_id: Mapped[int | None] = mapped_column(ForeignKey("chunks.id"))
+    from_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), index=True)
+    from_chunk_id: Mapped[int | None] = mapped_column(ForeignKey("chunks.id"), index=True)
     from_articulo: Mapped[str | None] = mapped_column(String(50))
     relation_type: Mapped[str] = mapped_column(String(30), nullable=False)  # deroga/reforma/adiciona
-    to_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
+    to_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), index=True)
     to_law_name_raw: Mapped[str] = mapped_column(String(300), nullable=False)
     fecha: Mapped[date | None] = mapped_column(Date)
     source_text: Mapped[str] = mapped_column(Text, nullable=False)

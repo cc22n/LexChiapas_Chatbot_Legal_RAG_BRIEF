@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.llm.token_usage import begin_usage, get_usage
-from app.rag.agent_tools import get_articulo_historial
+from app.rag.agent_tools import get_articulos_historial_bulk
+from app.rag.db_session import release_connection
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -192,6 +193,8 @@ def answer_question(
     # puede por si solo justificar una respuesta "grounded". Si nada paso el
     # threshold real de dense_search, no se llama al LLM en absoluto.
     grounded = any(c.passed_threshold for c in top_chunks)
+    # CRIT-02: devolver la conexion al pool antes de la llamada larga al LLM.
+    release_connection(db)
     generation_start = time.monotonic()
     answer, model_used, prompt_tokens, completion_tokens = generate_answer(
         question, top_chunks if grounded else [], conversation_history=conversation_history, technical=technical
@@ -227,6 +230,8 @@ def answer_question(
     # acumulador, en vez de solo los de generate_answer.
     gen_prompt, gen_completion, aux_prompt, aux_completion = get_usage()
 
+    historiales = get_articulos_historial_bulk(db, [(c.document_nombre, c.articulo_numero) for c in top_chunks])
+
     response = ChatResponse(
         answer=answer,
         retrieved_chunks=[
@@ -238,7 +243,7 @@ def answer_question(
                 content=c.content,
                 passed_threshold=c.passed_threshold,
                 derogado=is_articulo_derogado(c.content),
-                historial=get_articulo_historial(db, c.document_nombre, c.articulo_numero),
+                historial=historiales.get((c.document_nombre, c.articulo_numero), []),
             )
             for c in top_chunks
         ],

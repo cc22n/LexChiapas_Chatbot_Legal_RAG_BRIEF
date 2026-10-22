@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,6 +11,17 @@ from app.models.chunk import CURRENT_EMBEDDING_MODEL, EMBEDDING_DIMENSION
 
 class SemanticCacheEntry(Base):
     __tablename__ = "semantic_cache"
+    __table_args__ = (
+        # Sin indice, cache lookup (app.rag.semantic_cache) hacia sequential
+        # scan calculando <=> fila por fila en CADA pregunta sin historial
+        # (auditoria 2026-10-21). vector_cosine_ops porque lookup usa <=>.
+        Index(
+            "ix_semantic_cache_embedding_hnsw_cosine",
+            "question_embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"question_embedding": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     question_text: Mapped[str] = mapped_column(Text, nullable=False)

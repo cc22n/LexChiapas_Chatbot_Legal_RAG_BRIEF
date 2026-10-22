@@ -609,6 +609,19 @@ CREATE INDEX ix_chunks_embedding_hnsw_cosine ON public.chunks USING hnsw (embedd
 
 
 --
+-- Indices de la migracion a1c4d7e92b10 (auditoria 2026-10-21): FKs sin indice y HNSW del cache semantico
+--
+
+CREATE INDEX ix_messages_conversation_id ON public.messages USING btree (conversation_id);
+CREATE INDEX ix_messages_created_at ON public.messages USING btree (created_at);
+CREATE INDEX ix_feedback_message_id ON public.feedback USING btree (message_id);
+CREATE INDEX ix_legal_relations_from_document_id ON public.legal_relations USING btree (from_document_id);
+CREATE INDEX ix_legal_relations_to_document_id ON public.legal_relations USING btree (to_document_id);
+CREATE INDEX ix_legal_relations_from_chunk_id ON public.legal_relations USING btree (from_chunk_id);
+CREATE INDEX ix_semantic_cache_embedding_hnsw_cosine ON public.semantic_cache USING hnsw (question_embedding public.vector_cosine_ops);
+
+
+--
 -- Name: chunks chunks_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 

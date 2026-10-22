@@ -480,3 +480,111 @@ def get_articulo_historial(db: Session, document_nombre: str, articulo_numero: s
         return []
     relations = query_graph(db, document_nombre, articulo=articulo_numero, limit=10)
     return [_relation_to_sentence(rel) for rel in relations]
+
+
+def get_articulos_historial_bulk(
+    db: Session, pairs: list[tuple[str, str | None]]
+) -> dict[tuple[str, str], list[str]]:
+    """Version en lote de get_articulo_historial: resuelve el historial de
+    TODOS los (document_nombre, articulo_numero) de una respuesta con 2
+    queries en total, en vez de 3 por chunk (N+1, hallazgo ALT-04 de la
+    auditoria 2026-10-21).
+
+    Mantiene la semantica de query_graph(articulo=...): el nombre se resuelve
+    por ILIKE contra documentos activos; si matchea mas de uno y exactamente
+    uno coincide por nombre normalizado, se acota a ese documento (si no, se
+    mantiene el filtro amplio y se deja logger.warning). Las relaciones son
+    las del lado ORIGEN, comparando from_articulo sin distinguir mayusculas/
+    espacios, mas recientes primero, maximo 10 por articulo.
+
+    Devuelve {(document_nombre, articulo_numero): [oraciones]} solo para
+    pares con articulo; los pares sin articulo o sin relaciones quedan
+    ausentes (el llamador usa .get(par, [])).
+    """
+    wanted = sorted({(nombre, articulo) for nombre, articulo in pairs if articulo})
+    if not wanted:
+        return {}
+
+    nombres = sorted({nombre for nombre, _ in wanted})
+    matched_rows = db.execute(
+        text(
+            """
+            SELECT p.idx, d.id, d.nombre
+            FROM unnest(CAST(:patterns AS text[])) WITH ORDINALITY AS p(pat, idx)
+            JOIN documents d ON d.is_active = true AND d.nombre ILIKE p.pat
+            """
+        ),
+        {"patterns": [fuzzy_ilike_pattern(nombre) for nombre in nombres]},
+    ).all()
+
+    matched_by_nombre: dict[str, list[tuple[int, str]]] = {nombre: [] for nombre in nombres}
+    for row in matched_rows:
+        matched_by_nombre[nombres[row.idx - 1]].append((row.id, row.nombre))
+
+    doc_ids_by_nombre: dict[str, set[int]] = {}
+    for nombre, matched in matched_by_nombre.items():
+        doc_ids = {doc_id for doc_id, _ in matched}
+        if len(matched) > 1:
+            exact = [doc_id for doc_id, doc_nombre in matched if normalize_for_match(doc_nombre) == normalize_for_match(nombre)]
+            if len(exact) == 1:
+                doc_ids = {exact[0]}
+            else:
+                logger.warning(
+                    "get_articulos_historial_bulk: '%s' es ambiguo entre %d documentos (%s) -- "
+                    "sin match exacto de nombre, se mantiene el filtro amplio",
+                    nombre, len(matched), sorted(doc_nombre for _, doc_nombre in matched),
+                )
+        doc_ids_by_nombre[nombre] = doc_ids
+
+    all_doc_ids = sorted(set().union(*doc_ids_by_nombre.values()))
+    if not all_doc_ids:
+        return {}
+
+    rows = db.execute(
+        text(
+            """
+            SELECT lr.relation_type, lr.from_document_id, fd.nombre AS from_document_nombre,
+                   lr.from_articulo, lr.from_chunk_id, lr.to_document_id, lr.to_law_name_raw,
+                   lr.fecha, lr.source_text, lr.extraction_method
+            FROM legal_relations lr
+            JOIN documents fd ON fd.id = lr.from_document_id
+            WHERE lr.from_document_id = ANY(CAST(:doc_ids AS int[]))
+              AND UPPER(TRIM(lr.from_articulo)) = ANY(CAST(:articulos AS text[]))
+            """
+        ),
+        {
+            "doc_ids": all_doc_ids,
+            "articulos": sorted({articulo.strip().upper() for _, articulo in wanted}),
+        },
+    ).all()
+
+    result: dict[tuple[str, str], list[str]] = {}
+    for nombre, articulo in wanted:
+        articulo_key = articulo.strip().upper()
+        doc_ids = doc_ids_by_nombre[nombre]
+        matching = [
+            row for row in rows
+            if row.from_document_id in doc_ids and (row.from_articulo or "").strip().upper() == articulo_key
+        ]
+        matching.sort(key=lambda row: row.fecha or date.min, reverse=True)
+        sentences = [
+            _relation_to_sentence(
+                {
+                    "relation_type": row.relation_type,
+                    "from_document_id": row.from_document_id,
+                    "from_document_nombre": row.from_document_nombre,
+                    "from_articulo": row.from_articulo,
+                    "from_chunk_id": row.from_chunk_id,
+                    "to_document_id": row.to_document_id,
+                    "to_law_name_raw": row.to_law_name_raw,
+                    "is_self_modification": row.to_document_id == row.from_document_id,
+                    "fecha": row.fecha,
+                    "source_text": row.source_text,
+                    "extraction_method": row.extraction_method,
+                }
+            )
+            for row in matching[:10]
+        ]
+        if sentences:
+            result[(nombre, articulo)] = sentences
+    return result

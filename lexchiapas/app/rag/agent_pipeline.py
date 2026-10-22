@@ -110,12 +110,13 @@ from app.llm.token_usage import begin_usage, get_usage
 from app.rag.agent_tools import (
     get_article,
     get_article_ambiguity,
-    get_articulo_historial,
+    get_articulos_historial_bulk,
     query_graph,
     relations_to_chunks,
     search_by_law,
     search_laws,
 )
+from app.rag.db_session import release_connection
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -514,6 +515,9 @@ def _node_generar(state: AgentState) -> dict:
         # passed_threshold=True (ver retriever.RetrievedChunk).
         grounded_gate = any(c.passed_threshold for c in chunks)
 
+    # CRIT-02: devolver la conexion al pool antes de la llamada larga al LLM
+    # (en este punto la sesion solo tiene lecturas pendientes).
+    release_connection(state.get("db"))
     answer, model_used, prompt_tokens, completion_tokens = generate_answer(
         question, chunks if grounded_gate else [], conversation_history=conversation_history, technical=technical
     )
@@ -889,6 +893,8 @@ def answer_question_agentic(
     # ultima generacion) para que gen + aux sea el costo real completo.
     gen_prompt, gen_completion, aux_prompt, aux_completion = get_usage()
 
+    historiales = get_articulos_historial_bulk(db, [(c.document_nombre, c.articulo_numero) for c in chunks])
+
     response = ChatResponse(
         answer=final_state["answer"],
         retrieved_chunks=[
@@ -900,7 +906,7 @@ def answer_question_agentic(
                 content=c.content,
                 passed_threshold=c.passed_threshold,
                 derogado=is_articulo_derogado(c.content),
-                historial=get_articulo_historial(db, c.document_nombre, c.articulo_numero),
+                historial=historiales.get((c.document_nombre, c.articulo_numero), []),
             )
             for c in chunks
         ],
