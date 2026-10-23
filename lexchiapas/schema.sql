@@ -658,7 +658,7 @@ ALTER TABLE ONLY public.ingestion_logs
 --
 
 ALTER TABLE ONLY public.legal_relations
-    ADD CONSTRAINT legal_relations_from_chunk_id_fkey FOREIGN KEY (from_chunk_id) REFERENCES public.chunks(id);
+    ADD CONSTRAINT legal_relations_from_chunk_id_fkey FOREIGN KEY (from_chunk_id) REFERENCES public.chunks(id) ON DELETE CASCADE;
 
 
 --

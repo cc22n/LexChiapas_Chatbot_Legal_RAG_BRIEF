@@ -32,7 +32,12 @@ class LegalRelation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     from_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), index=True)
-    from_chunk_id: Mapped[int | None] = mapped_column(ForeignKey("chunks.id"), index=True)
+    # ondelete CASCADE (auditoria 2026-10-21, ALT-03): replace_existing de la
+    # ingesta borra los chunks de una ley antes de reinsertarlos; sin cascade
+    # las relaciones que cuelgan de esos chunks lanzaban ForeignKeyViolation.
+    # Las relaciones son datos derivados: extract_legal_relations.main() las
+    # reconstruye completas desde los chunks activos.
+    from_chunk_id: Mapped[int | None] = mapped_column(ForeignKey("chunks.id", ondelete="CASCADE"), index=True)
     from_articulo: Mapped[str | None] = mapped_column(String(50))
     relation_type: Mapped[str] = mapped_column(String(30), nullable=False)  # deroga/reforma/adiciona
     to_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), index=True)
