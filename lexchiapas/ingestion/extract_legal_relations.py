@@ -111,10 +111,36 @@ RELATION_TYPE_BY_KEYWORD = {
 # posicion exacta de cada caracter, asi el regex de abajo solo necesita
 # reconocer ASCII plano y los indices de match siguen siendo validos
 # para recortar el texto ORIGINAL (con acento real) del chunk.
+# Errata real del PDF oficial del Congreso (auditoria 2026-10-22): algunos
+# marcadores llegan SIN el parentesis de apertura, p. ej. en la Ley del
+# Servicio Civil 57 de 64 "ADICION PUBLICADA EN EL P. O. ... 2016.)" abren
+# una linea sin "(" y el regex original los descartaba (171 -> 130
+# relaciones al recargar la ley desde el Congreso). Se acepta la ausencia del
+# "(" SOLO si la palabra clave abre la linea (^[ \t]*) -- una palabra clave a
+# mitad de linea sigue exigiendo el "(" -- y el cuerpo se acota a 250
+# caracteres (los marcadores reales miden <= 111) para que un "REFORMA
+# PUBLICADA" suelto al inicio de una linea de prosa no consuma texto hasta un
+# ")" lejano. Ver tambien iter_publicada_markers (guarda del pie de pagina).
 MARKER_RE_PUBLICADA = re.compile(
-    r"\(\s*(?:REFORMA|ADICION|DEROGACION)\s+PUBLICAD[^)]*\)",
-    re.IGNORECASE,
+    r"(?:\(\s*|^[ \t]*)(?:REFORMA|ADICION|DEROGACION)\s+PUBLICAD[^)]{0,250}\)",
+    re.IGNORECASE | re.MULTILINE,
 )
+
+_FOOTER_ULTIMA_RE = re.compile(r"ULTIMA\s*$", re.IGNORECASE)
+
+
+def iter_publicada_markers(content_folded: str):
+    """Itera los matches de MARKER_RE_PUBLICADA sobre el texto YA foldeado,
+    descartando los que son la continuacion de un pie de pagina partido en dos
+    lineas: "(ULTIMA\\nREFORMA PUBLICADA MEDIANTE P.O. ...)" es la estampa de
+    "ultima reforma del documento" (ver comentario de arriba), no una reforma
+    de ese articulo. Solo aplica a matches sin "(" propio, que son los que
+    podrian arrancar a mitad de ese pie."""
+    for match in MARKER_RE_PUBLICADA.finditer(content_folded):
+        if not match.group(0).lstrip().startswith("("):
+            if _FOOTER_ULTIMA_RE.search(content_folded[max(0, match.start() - 20):match.start()]):
+                continue
+        yield match
 
 PUBLICADA_KEYWORD_RE = re.compile(r"REFORMA|ADICION|DEROGACION", re.IGNORECASE)
 
@@ -450,7 +476,7 @@ def main() -> None:
             # luego recortar el texto ORIGINAL (con acento real) usando los
             # mismos indices de match -- ver fold_accents_preserve_length.
             content_folded = fold_accents_preserve_length(content)
-            for match in MARKER_RE_PUBLICADA.finditer(content_folded):
+            for match in iter_publicada_markers(content_folded):
                 raw_marker = content[match.start():match.end()]
                 folded_marker_text = normalize_ws(match.group(0))
 
