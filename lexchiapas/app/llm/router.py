@@ -106,7 +106,10 @@ def generate_with_fallback(
             create_kwargs = {
                 "model": model,
                 "messages": messages,
-                "temperature": effective_temperature,
+                # Override por entrada de fallback_order: hay modelos que solo
+                # aceptan un valor (kimi-k2.6/k3 exigen temperature=1; otro
+                # valor da HTTP 400 y el loop saltaria de proveedor sin avisar).
+                "temperature": entry.get("temperature", effective_temperature),
                 "max_tokens": llm_config.get("max_tokens", 1024),
             }
             if response_format is not None:

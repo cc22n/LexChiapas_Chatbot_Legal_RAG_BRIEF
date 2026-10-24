@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     gemini_api_key: str = ""
     groq_api_key: str = ""
+    # Kimi (Moonshot AI, API directa https://api.moonshot.ai/v1, OpenAI-
+    # compatible). Credito propio del dueno; solo acepta temperature=1, ver
+    # ai_config.json llm._note_moonshot y el override "temperature" por entrada.
+    kimi_api_key: str = ""
     # Reranking real (Fase 3.7): NVIDIA NIM primero, Jina como 2do nivel de
     # fallback (ver app/rag/reranker_router.py y ai_config.json
     # reranking.fallback_order). nvidia_api_key ya existe arriba, se reusa.

@@ -9,6 +9,8 @@
   },
   "llm": {
     "_note_multiproveedor": "fallback_order es una lista de {provider, model}. 'provider' debe existir en 'providers' (base_url) y tener su api_key configurada en .env (ver app/config.py Settings). NVIDIA NIM va primero (free tier, ~40 RPM, es el proveedor principal del proyecto). OpenAI y xAI van al final, a proposito, como ultimo recurso: ambos corren con creditos limitados de $5 que se agotan con uso real, verificados el 2026-07-09 (gpt-4o-mini y grok-4.20-0309-non-reasoning respondieron bien). Groq y Gemini NO estan en el fallback: Groq con la key actual da 'expired_api_key', Gemini da cuota 0 en el tier gratis para al menos un modelo probado -- agregarlos cuando esas keys esten realmente utilizables.",
+    "_note_2026_10_22_modelos_nim_muertos": "Los 3 modelos NIM anteriores (minimaxai/minimax-m3, deepseek-ai/deepseek-v4-pro, z-ai/glm-5.2) respondian HTTP 410 Gone (fin de vida 2026-08/09) y todo el trafico caia a OpenAI. Se reemplazaron por minimaxai/minimax-m3.1-flash (verificado con llamada real: texto y response_format json_object validos). Probados y NO incluidos: z-ai/glm-5.3 (contenido vacio con max_tokens bajo, inconcluso), deepseek-ai/deepseek-v4.1-flash y z-ai/glm-5.3-flash (timeout a 25s), moonshotai/kimi-k2.6 y nvidia/nemotron-3-super-120b-a12b (listados pero 404 en NIM). Antes de agregar un modelo: llamada real, no solo /v1/models.",
+    "_note_moonshot": "Kimi via API directa de Moonshot (no NVIDIA). Verificado 2026-10-22 con la key del dueno en https://api.moonshot.ai/v1 (la .cn da 401): modelos kimi-k2.6, kimi-k3, kimi-k2.7-code, kimi-k2.7-code-highspeed. Los modelos kimi-k2.6/k3 SOLO aceptan temperature=1 (otro valor devuelve HTTP 400 y el router saltaria de proveedor sin avisar), por eso esta entrada lleva 'temperature': 1, que app.llm.router aplica por encima de llm.temperature. Se eligio kimi-k3 porque gasta menos tokens de razonamiento oculto que kimi-k2.6 (~100 vs ~300 para una frase) y max_tokens es 1024; con temperature=1 sus respuestas son menos deterministas que las de los demas proveedores (que usan 0.1), por eso va despues de NIM y antes de OpenAI/xAI. Precio sin verificar.",
     "providers": {
       "nvidia_nim": {
         "base_url": "https://integrate.api.nvidia.com/v1"
@@ -18,20 +20,20 @@
       },
       "xai": {
         "base_url": "https://api.x.ai/v1"
+      },
+      "moonshot": {
+        "base_url": "https://api.moonshot.ai/v1"
       }
     },
     "fallback_order": [
       {
         "provider": "nvidia_nim",
-        "model": "minimaxai/minimax-m3"
+        "model": "minimaxai/minimax-m3.1-flash"
       },
       {
-        "provider": "nvidia_nim",
-        "model": "deepseek-ai/deepseek-v4-pro"
-      },
-      {
-        "provider": "nvidia_nim",
-        "model": "z-ai/glm-5.2"
+        "provider": "moonshot",
+        "model": "kimi-k3",
+        "temperature": 1
       },
       {
         "provider": "openai",

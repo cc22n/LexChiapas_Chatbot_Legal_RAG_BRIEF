@@ -47,6 +47,7 @@ _PROVIDER_API_KEY_ATTR = {
     "xai": "xai_api_key",
     "gemini": "gemini_api_key",
     "groq": "groq_api_key",
+    "moonshot": "kimi_api_key",
 }
 
 
