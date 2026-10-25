@@ -290,7 +290,13 @@ GOLDEN_DATASET: list[GoldenCase] = [
         name="test_ambiental_sanciones",
         question="Que sanciones puede imponer la autoridad por violaciones a la Ley Ambiental de Chiapas?",
         ley_contains="Ambiental",
-        articulo_esperado="214",
+        # 2026-10-24: la Ley Ambiental se recargo desde el Congreso y resulto que
+        # el corpus tenia la ley de 2009, sustituida por un "texto de nueva
+        # creacion" de 2015 con otra numeracion. La disposicion que este caso
+        # esperaba como art. 214 ("Cuando existan violaciones a los preceptos de
+        # esta ley ... podran imponer al infractor ...") es ahora el art. 238; el
+        # 214 actual dice "Se Deroga". Verificado leyendo ambos textos.
+        articulo_esperado="238",
         expects_grounded=True,
     ),
     # -------------------------------------------------------------------
