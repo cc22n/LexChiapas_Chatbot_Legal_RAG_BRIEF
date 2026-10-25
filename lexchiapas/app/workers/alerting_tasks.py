@@ -8,6 +8,13 @@ de turnos con error de sistema. Es deliberadamente simple y sin dependencias
 externas de pago (Sentry, PagerDuty): usa el mismo bot de Telegram y el mismo
 Redis que ya tiene el proyecto. Nunca lanza -- una falla del alerting jamas
 debe tumbar al worker.
+
+Auditoria 2026-10-24: el canario de embeddings NO cubria los modelos LLM. Los
+tres modelos de NVIDIA de llm.fallback_order llevaban semanas devolviendo HTTP
+410 (fin de vida) y todo el trafico caia en silencio al ultimo recurso, que
+tiene credito limitado. llm_models_canary (cada 6 h) prueba cada entrada de
+fallback_order y avisa solo de fallos PERMANENTES (modelo retirado, credenciales
+rechazadas, credito agotado), nunca de timeouts/429 transitorios.
 """
 
 import logging
@@ -15,9 +22,9 @@ import logging
 import httpx
 import redis
 
-from app.config import get_settings
+from app.config import get_ai_config, get_settings
 from app.database import SessionLocal
-from app.llm.providers import embed_text
+from app.llm.providers import embed_text, get_client_for_provider
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger("lexchiapas.alerting")
@@ -149,4 +156,94 @@ def health_canary() -> dict:
         if _cooldown_allows(kind) and send_admin_telegram_alert(message):
             result["sent"].append(kind)  # type: ignore[attr-defined]
 
+    return result
+
+
+# Estados que significan que una entrada de fallback_order ya no sirve de forma
+# PERMANENTE. Todo lo demas (timeout, 5xx, 429 por ritmo) es transitorio y no
+# alerta: con proveedores intermitentes seria ruido.
+_LLM_GONE_STATUSES = (404, 410)
+_LLM_AUTH_STATUSES = (401, 403)
+_LLM_PROBLEM_LABELS = {
+    "gone": "modelo retirado (fin de vida)",
+    "auth": "credenciales rechazadas",
+    "quota": "credito agotado",
+}
+
+
+def _classify_llm_error(exc: Exception) -> str:
+    """'gone' | 'auth' | 'quota' | 'transient'."""
+    status = getattr(exc, "status_code", None)
+    if status in _LLM_GONE_STATUSES:
+        return "gone"
+    if status in _LLM_AUTH_STATUSES:
+        return "auth"
+    body = str(getattr(exc, "body", "") or exc).lower()
+    # OpenAI: 429 con code insufficient_quota; Moonshot: exceeded_current_quota_error.
+    if status == 402 or (status == 429 and ("insufficient_quota" in body or "exceeded_current_quota" in body)):
+        return "quota"
+    return "transient"
+
+
+def _check_llm_models() -> tuple[str | None, dict]:
+    """Prueba cada entrada de llm.fallback_order con una llamada minima real
+    (max_tokens=16; usa la temperatura propia de la entrada si la tiene, p. ej.
+    Kimi exige 1). Devuelve (mensaje_de_alerta | None, resumen)."""
+    llm_config = get_ai_config()["llm"]
+    working: list[str] = []
+    transient: list[str] = []
+    problems: list[tuple[str, str]] = []
+
+    for entry in llm_config["fallback_order"]:
+        label = f"{entry['provider']}/{entry['model']}"
+        try:
+            client = get_client_for_provider(entry["provider"], timeout=20.0)
+            client.chat.completions.create(
+                model=entry["model"],
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=16,
+                temperature=entry.get("temperature", llm_config.get("temperature", 0.1)),
+            )
+            working.append(label)
+        except Exception as exc:  # noqa: BLE001 - el alerting nunca debe tumbar el worker
+            kind = _classify_llm_error(exc)
+            if kind == "transient":
+                transient.append(label)
+                logger.warning("alerting: %s fallo de forma transitoria: %s", label, type(exc).__name__)
+            else:
+                problems.append((label, kind))
+                logger.error("alerting: %s NO disponible (%s): %s", label, kind, type(exc).__name__)
+
+    summary = {"working": working, "transient": transient, "problems": problems}
+    if not problems:
+        return None, summary
+
+    lines = [f"- {label}: {_LLM_PROBLEM_LABELS[kind]}" for label, kind in problems]
+    message = "[LexChiapas] MODELOS LLM NO DISPONIBLES en llm.fallback_order:\n" + "\n".join(lines)
+    if working:
+        message += "\nSiguen respondiendo: " + ", ".join(working) + "."
+    else:
+        message += "\nNINGUNA entrada respondio bien: el bot puede no generar respuestas."
+    message += (
+        "\nRevisa llm.fallback_order en ai_config.json (listar /v1/models y probar con una llamada real "
+        "antes de agregar un modelo) y usa POST /admin/config/reload tras corregirlo."
+    )
+    return message, summary
+
+
+@celery_app.task(name="app.workers.alerting_tasks.llm_models_canary")
+def llm_models_canary() -> dict:
+    """Corre cada 6 h (ver beat_schedule). Avisa por Telegram de modelos LLM
+    retirados, credenciales rechazadas o credito agotado, con cooldown. Nunca
+    lanza."""
+    result: dict[str, object] = {"problems": [], "sent": False}
+    try:
+        message, summary = _check_llm_models()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("alerting: llm_models_canary fallo: %s", exc)
+        return result
+    result["problems"] = summary["problems"]
+    result["working"] = summary["working"]
+    if message and _cooldown_allows("llm_models") and send_admin_telegram_alert(message):
+        result["sent"] = True
     return result

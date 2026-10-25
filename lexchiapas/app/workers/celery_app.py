@@ -82,5 +82,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.alerting_tasks.health_canary",
         "schedule": crontab(minute="*/5"),
     },
+    # Auditoria 2026-10-24: canario de modelos LLM cada 6 h. Una llamada minima
+    # (16 tokens) por entrada de llm.fallback_order: centavos al dia. Avisa solo
+    # de fallos permanentes (404/410, 401/403, credito agotado).
+    "canario-modelos-llm-6h": {
+        "task": "app.workers.alerting_tasks.llm_models_canary",
+        "schedule": crontab(minute=7, hour="*/6"),
+    },
 }
 celery_app.conf.timezone = "America/Mexico_City"
