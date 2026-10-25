@@ -24,7 +24,12 @@ EMBEDDING_DIMENSION = 1024  # debe coincidir con app/config.py -> ai_config.json
 # lo especifican. pgvector solo protege contra cambio de DIMENSION, no de
 # modelo con igual dimension -- registrar el modelo por fila permite detectar
 # un corpus con embeddings de modelos mezclados (Fase 9.8 / hallazgo C5).
-CURRENT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
+# Migrado 2026-10-23: los embeddings de NVIDIA se colgaban en ~50% de las
+# llamadas (ReadTimeout a los 60 s, diagnosticado con 3 pruebas: no era IPv6,
+# ni una IP, ni la reutilizacion de conexion). Se paso a OpenAI
+# text-embedding-3-large truncado a 1024 dims via "dimensions" -- ver
+# ai_config.json "_note_migracion_2026_10_23" y scripts/reembed_corpus.py.
+CURRENT_EMBEDDING_MODEL = "text-embedding-3-large"
 
 
 class Chunk(Base):

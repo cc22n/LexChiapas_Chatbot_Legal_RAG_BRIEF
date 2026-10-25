@@ -112,8 +112,23 @@ _EMBED_MODEL_DEAD_STATUSES = (404, 410)
 EMBEDDING_MODEL_DEAD_MARKER = "EMBEDDING_MODEL_DEAD"
 
 
-def embed_text(text: str, input_type: str = "query") -> list[float]:
-    """input_type: 'query' para preguntas del usuario, 'passage' para chunks
+def _get_embeddings_client() -> OpenAI:
+    """Cliente del proveedor de embeddings de ai_config.json (embeddings.
+    provider). Punto unico de sustitucion para tests. NVIDIA conserva su
+    constructor historico (get_nim_client); cualquier otro proveedor se
+    resuelve por llm.providers (base_url) y su api key en .env."""
+    provider = get_ai_config()["embeddings"].get("provider", "nvidia_nim")
+    if provider == "nvidia_nim":
+        return get_nim_client()
+    return get_client_for_provider(provider)
+
+
+def embed_texts(texts: list[str], input_type: str = "query") -> list[list[float]]:
+    """Version por lotes de embed_text: UN request con varios textos, vectores
+    devueltos en el mismo orden de entrada. Misma resiliencia (reintentos,
+    deteccion de modelo muerto) -- embed_text es un envoltorio de esta funcion.
+
+    input_type: 'query' para preguntas del usuario, 'passage' para chunks
     que se van a indexar. NV-Embed es un modelo asimetrico: la API rechaza la
     llamada (400) si no se manda este parametro, y usar el valor equivocado
     en cada caso degrada la calidad del retrieval aunque la llamada no falle.
@@ -126,18 +141,25 @@ def embed_text(text: str, input_type: str = "query") -> list[float]:
     parametro) para no tener que migrar el esquema de chunks.embedding.
     """
     ai_config = get_ai_config()
-    client = get_nim_client()
+    provider = ai_config["embeddings"].get("provider", "nvidia_nim")
+    client = _get_embeddings_client()
     model = ai_config["embeddings"]["model"]
     dimension = ai_config["embeddings"]["dimension"]
 
+    # NVIDIA exige input_type (modelo asimetrico) y recibe "dimensions" por
+    # extra_body; OpenAI (text-embedding-3-*) es simetrico y soporta
+    # "dimensions" como parametro propio para truncar a la dimension de la
+    # columna pgvector.
+    create_kwargs: dict = {"model": model, "input": list(texts)}
+    if provider == "nvidia_nim":
+        create_kwargs["extra_body"] = {"input_type": input_type, "dimensions": dimension}
+    else:
+        create_kwargs["dimensions"] = dimension
+
     for attempt in range(1, _EMBED_MAX_ATTEMPTS + 1):
         try:
-            response = client.embeddings.create(
-                model=model,
-                input=[text],
-                extra_body={"input_type": input_type, "dimensions": dimension},
-            )
-            return response.data[0].embedding
+            response = client.embeddings.create(**create_kwargs)
+            return [d.embedding for d in sorted(response.data, key=lambda d: d.index)]
         except _EMBED_RETRYABLE_ERRORS as exc:
             if attempt == _EMBED_MAX_ATTEMPTS:
                 raise
@@ -162,3 +184,8 @@ def embed_text(text: str, input_type: str = "query") -> list[float]:
             raise
 
     raise AssertionError("unreachable")  # el loop siempre retorna o re-lanza en el ultimo intento
+
+
+def embed_text(text: str, input_type: str = "query") -> list[float]:
+    """Embedding de UN texto (ver embed_texts para input_type y dimensions)."""
+    return embed_texts([text], input_type=input_type)[0]

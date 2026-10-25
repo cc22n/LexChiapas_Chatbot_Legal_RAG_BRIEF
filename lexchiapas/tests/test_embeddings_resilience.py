@@ -42,7 +42,7 @@ def _api_status_error(status_code: int) -> APIStatusError:
 
 @pytest.mark.parametrize("status_code", [404, 410])
 def test_embed_text_model_dead_logs_marker_and_raises(monkeypatch, caplog, status_code):
-    monkeypatch.setattr(providers, "get_nim_client", lambda: _FakeClient(_api_status_error(status_code)))
+    monkeypatch.setattr(providers, "_get_embeddings_client", lambda: _FakeClient(_api_status_error(status_code)))
     with caplog.at_level(logging.ERROR, logger="lexchiapas.llm.providers"):
         with pytest.raises(APIStatusError):
             embed_text("cualquier pregunta")
@@ -52,7 +52,7 @@ def test_embed_text_model_dead_logs_marker_and_raises(monkeypatch, caplog, statu
 def test_embed_text_other_4xx_propagates_without_marker(monkeypatch, caplog):
     # 400 (ej. input invalido) NO es "modelo muerto": debe propagar sin el
     # marcador, para que la alerta no se dispare por un error de payload.
-    monkeypatch.setattr(providers, "get_nim_client", lambda: _FakeClient(_api_status_error(400)))
+    monkeypatch.setattr(providers, "_get_embeddings_client", lambda: _FakeClient(_api_status_error(400)))
     with caplog.at_level(logging.ERROR, logger="lexchiapas.llm.providers"):
         with pytest.raises(APIStatusError):
             embed_text("cualquier pregunta")

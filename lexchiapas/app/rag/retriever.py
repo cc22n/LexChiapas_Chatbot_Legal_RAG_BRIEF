@@ -143,6 +143,10 @@ def dense_search(
     """
     query_vector = to_vector_literal(query_embedding)
     document_pattern = fuzzy_ilike_pattern(document_filter) if document_filter else None
+    # ALT-07 (auditoria 2026-10-21): solo se comparan vectores del MISMO modelo
+    # que embebio la consulta. El coseno entre espacios vectoriales distintos
+    # (p. ej. durante o tras una migracion de modelo) es ruido, no similitud.
+    embedding_model = get_ai_config()["embeddings"]["model"]
     rows = db.execute(
         text(
             """
@@ -151,13 +155,20 @@ def dense_search(
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
             WHERE d.is_active = true
+              AND c.embedding_model = :embedding_model
               AND 1 - (c.embedding <=> CAST(:query_vector AS vector)) > :threshold
               AND (CAST(:document_pattern AS text) IS NULL OR d.nombre ILIKE :document_pattern)
             ORDER BY c.embedding <=> CAST(:query_vector AS vector)
             LIMIT :k
             """
         ),
-        {"query_vector": query_vector, "threshold": threshold, "k": k, "document_pattern": document_pattern},
+        {
+            "query_vector": query_vector,
+            "threshold": threshold,
+            "k": k,
+            "document_pattern": document_pattern,
+            "embedding_model": embedding_model,
+        },
     ).all()
 
     return [

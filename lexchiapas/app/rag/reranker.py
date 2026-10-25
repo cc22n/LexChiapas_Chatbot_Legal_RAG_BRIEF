@@ -16,6 +16,29 @@ def _overlap_score(query_words: set[str], chunk: RetrievedChunk) -> float:
     return chunk.similarity + overlap
 
 
+RRF_K = 60
+
+
+def _rrf_scores(reranker_scores: list[float]) -> list[float]:
+    """Reciprocal Rank Fusion entre el orden de hybrid_search (la posicion de
+    cada candidato en la lista de entrada, 1 = mejor) y el orden del
+    reranker (mayor puntaje = rank 1).
+
+    Motivo (experimento E1, 2026-10-24, 18 casos del golden dataset): con el
+    modelo de embeddings nuevo casi todos los chunks pasan el umbral, asi que
+    el puntaje del reranker decidia solo el orden y mandaba al rank 16 el
+    articulo correcto de test_familiar_adopcion_requisitos (que la fusion
+    hibrida tenia en el rank 2). Con RRF: 18/18 articulos esperados en el
+    top-5 contra 16/18 del orden anterior, sin perder ninguno.
+    """
+    n = len(reranker_scores)
+    by_score = sorted(range(n), key=lambda i: reranker_scores[i], reverse=True)
+    reranker_rank = [0] * n
+    for position, index in enumerate(by_score, start=1):
+        reranker_rank[index] = position
+    return [1.0 / (RRF_K + (i + 1)) + 1.0 / (RRF_K + reranker_rank[i]) for i in range(n)]
+
+
 def rerank(query_text: str, candidates: list[RetrievedChunk]) -> list[RetrievedChunk]:
     """Reordena los candidatos de hybrid_search (con un reranker real via
     reranker_router.py, cayendo a una heuristica local si ambos proveedores
@@ -47,9 +70,16 @@ def rerank(query_text: str, candidates: list[RetrievedChunk]) -> list[RetrievedC
     scores, provider_used = get_relevance_scores(query_text, [c.content for c in candidates])
 
     if scores is not None and provider_used != "none":
+        if get_ai_config()["retrieval"].get("rerank_fusion", "none") == "rrf":
+            # Criterio secundario = fusion RRF (rank de hybrid_search + rank del
+            # reranker) en vez del puntaje del reranker solo. passed_threshold
+            # SIGUE siendo el primer criterio (invariante "threshold primero").
+            secondary = _rrf_scores(scores)
+        else:
+            secondary = list(scores)
         reranked = [
             c for c, _ in sorted(
-                zip(candidates, scores),
+                zip(candidates, secondary),
                 key=lambda pair: (pair[0].passed_threshold, pair[1]),
                 reverse=True,
             )

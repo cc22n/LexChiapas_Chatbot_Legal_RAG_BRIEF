@@ -61,7 +61,7 @@ CREATE TABLE public.chunks (
     chunk_metadata jsonb,
     embedding public.vector(1024),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    embedding_model character varying(200) DEFAULT 'nvidia/llama-nemotron-embed-vl-1b-v2'::character varying NOT NULL
+    embedding_model character varying(200) DEFAULT 'text-embedding-3-large'::character varying NOT NULL
 );
 
 
@@ -404,7 +404,7 @@ CREATE TABLE public.semantic_cache (
     hit_count integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     last_used_at timestamp with time zone DEFAULT now() NOT NULL,
-    embedding_model character varying(200) DEFAULT 'nvidia/llama-nemotron-embed-vl-1b-v2'::character varying NOT NULL
+    embedding_model character varying(200) DEFAULT 'text-embedding-3-large'::character varying NOT NULL
 );
 
 
