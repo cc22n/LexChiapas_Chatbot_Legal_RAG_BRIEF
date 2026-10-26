@@ -1,3 +1,5 @@
+import logging
+import re
 import time
 
 from openai import RateLimitError
@@ -26,6 +28,45 @@ def _rate_limit_backoff_seconds(exc: RateLimitError) -> float:
     except (AttributeError, TypeError, ValueError):
         return RATE_LIMIT_DEFAULT_BACKOFF_SECONDS
     return min(max(retry_after, 0.0), RATE_LIMIT_MAX_BACKOFF_SECONDS)
+
+
+logger = logging.getLogger("lexchiapas.llm.router")
+
+# Auditoria 2026-10-24: una respuesta con finish_reason == "length" se corto por
+# el tope de tokens y llegaba al usuario cortada a mitad de frase (visto con
+# minimax-m3.1-flash en la pregunta de jornada laboral); el router no revisaba
+# finish_reason. Los modelos con razonamiento oculto (Kimi) consumen parte del
+# tope pensando y pueden incluso devolver contenido vacio. Por eso, si se corta,
+# se reintenta el MISMO modelo con llm.max_tokens_retry; si sigue cortado se
+# pasa al siguiente; y solo si TODOS se cortan se devuelve el mejor texto
+# recortado a la ultima frase completa (con aviso en el log).
+DEFAULT_MAX_TOKENS_RETRY = 3072
+# Abreviaturas juridicas que terminan en "." sin cerrar una frase ("Art. 22").
+_ABBREVIATIONS = {"art", "arts", "fr", "fracc", "num", "núm", "no", "p", "pp", "inc", "cap", "sec", "lic", "dr", "sr", "sra"}
+
+
+def _trim_to_last_sentence(text: str | None) -> str:
+    """Recorta un texto cortado por el tope de tokens a su ultima frase
+    completa. Si no hay ningun cierre de frase, lo devuelve sin cambios."""
+    text = (text or "").rstrip()
+    for match in reversed(list(re.finditer(r"[.!?](?=\s|$)", text))):
+        previous_word = re.search(r"([A-Za-zÁÉÍÓÚáéíóúñÑ]+)$", text[: match.start()])
+        if previous_word and previous_word.group(1).lower() in _ABBREVIATIONS:
+            continue
+        return text[: match.end()]
+    return text
+
+
+def _create_with_rate_limit_retry(client, create_kwargs, provider, rate_limited_providers):
+    try:
+        return client.chat.completions.create(**create_kwargs)
+    except RateLimitError as rate_exc:
+        time.sleep(_rate_limit_backoff_seconds(rate_exc))
+        try:
+            return client.chat.completions.create(**create_kwargs)
+        except RateLimitError:
+            rate_limited_providers.add(provider)
+            raise
 
 
 def get_primary_model() -> str:
@@ -95,6 +136,7 @@ def generate_with_fallback(
     timeout = llm_config.get("fast_timeout_seconds", REQUEST_TIMEOUT_SECONDS) if fast else REQUEST_TIMEOUT_SECONDS
 
     last_error: Exception | None = None
+    truncated: tuple[str | None, str, int | None, int | None] | None = None
     rate_limited_providers: set[str] = set()
     for entry in llm_config["fallback_order"]:
         provider = entry["provider"]
@@ -110,31 +152,47 @@ def generate_with_fallback(
                 # aceptan un valor (kimi-k2.6/k3 exigen temperature=1; otro
                 # valor da HTTP 400 y el loop saltaria de proveedor sin avisar).
                 "temperature": entry.get("temperature", effective_temperature),
-                "max_tokens": llm_config.get("max_tokens", 1024),
             }
             if response_format is not None:
                 create_kwargs["response_format"] = response_format
-            try:
-                response = client.chat.completions.create(**create_kwargs)
-            except RateLimitError as rate_exc:
-                time.sleep(_rate_limit_backoff_seconds(rate_exc))
-                try:
-                    response = client.chat.completions.create(**create_kwargs)
-                except RateLimitError:
-                    rate_limited_providers.add(provider)
-                    raise
-            usage = response.usage
-            prompt_tokens = usage.prompt_tokens if usage else None
-            completion_tokens = usage.completion_tokens if usage else None
-            # Fase 9.8/A10: contabiliza los tokens de ESTA llamada en el
-            # acumulador del turno (generacion vs auxiliar segun el scope). Es
-            # el unico choke point de generacion, asi que capturar aca cubre
-            # todas las llamadas sin tocar los call-sites auxiliares.
-            record_usage(prompt_tokens, completion_tokens)
-            return response.choices[0].message.content, model, prompt_tokens, completion_tokens
+            # Presupuestos de tokens a probar: el base (por entrada o global) y,
+            # si es mayor, el de reintento ante finish_reason == "length".
+            base_max_tokens = entry.get("max_tokens", llm_config.get("max_tokens", 1024))
+            retry_max_tokens = llm_config.get("max_tokens_retry", DEFAULT_MAX_TOKENS_RETRY)
+            budgets = [base_max_tokens] + ([retry_max_tokens] if retry_max_tokens > base_max_tokens else [])
+            for budget in budgets:
+                create_kwargs["max_tokens"] = budget
+                response = _create_with_rate_limit_retry(client, create_kwargs, provider, rate_limited_providers)
+                usage = response.usage
+                prompt_tokens = usage.prompt_tokens if usage else None
+                completion_tokens = usage.completion_tokens if usage else None
+                # Fase 9.8/A10: contabiliza los tokens de ESTA llamada en el
+                # acumulador del turno (generacion vs auxiliar segun el scope). Es
+                # el unico choke point de generacion, asi que capturar aca cubre
+                # todas las llamadas sin tocar los call-sites auxiliares. Tambien
+                # el intento cortado: esos tokens se pagaron.
+                record_usage(prompt_tokens, completion_tokens)
+                choice = response.choices[0]
+                content = choice.message.content
+                if getattr(choice, "finish_reason", None) != "length":
+                    return content, model, prompt_tokens, completion_tokens
+                logger.warning(
+                    "router: %s/%s corto la respuesta por tope de tokens (max_tokens=%s, contenido=%d caracteres)",
+                    provider, model, budget, len(content or ""),
+                )
+                if truncated is None or len(content or "") > len(truncated[0] or ""):
+                    truncated = (content, model, prompt_tokens, completion_tokens)
+            # Cortada con todos los presupuestos: probar el siguiente modelo.
         except Exception as exc:  # noqa: BLE001 - probamos la siguiente entrada
             last_error = exc
             continue
+
+    if truncated is not None:
+        # Ultimo recurso: ningun modelo dio una respuesta completa. Mejor una
+        # respuesta recortada a su ultima frase completa que un error; queda en
+        # el log para poder detectarlo.
+        logger.error("router: TODOS los modelos cortaron la respuesta; se devuelve la mas larga recortada a su ultima frase")
+        return _trim_to_last_sentence(truncated[0]), truncated[1], truncated[2], truncated[3]
 
     raise AllModelsFailedError(
         f"todos los modelos de fallback_order fallaron: {last_error}"
