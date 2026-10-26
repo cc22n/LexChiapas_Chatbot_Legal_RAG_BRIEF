@@ -40,12 +40,14 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
   vigente un artículo que ya no lo es.
 - **Índice vectorial real**: HNSW (`vector_cosine_ops`) sobre la columna de
   embeddings — sin esto, cada búsqueda hacía sequential scan sobre toda la
-  tabla de chunks (13,000+ filas y creciendo con cada ley nueva).
+  tabla de chunks (12,000+ filas y creciendo con cada ley nueva).
 - **Hybrid search**: búsqueda densa (pgvector, embeddings) + BM25 (sparse),
   con umbral de similitud real aplicado ANTES de generar cualquier
   respuesta.
 - **Reranking real**: NVIDIA NIM (`llama-nemotron-rerank`) con fallback a
-  Jina y a una heurística local si ambos proveedores fallan.
+  Jina y a una heurística local si ambos proveedores fallan. El orden final
+  combina el rank de la búsqueda híbrida con el del reranker (RRF), con
+  `passed_threshold` siempre como primer criterio.
 - **RAG agéntico** (LangGraph): decide la ruta de búsqueda (general / por
   ley / artículo específico / historial de reformas), con auto-reflexión
   y reintento cuando el grounding inicial no es suficiente. Cuando el
@@ -84,7 +86,9 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
 | Backend | FastAPI, Python 3.11+ |
 | Base de datos | PostgreSQL + pgvector (psycopg v3), migraciones con Alembic |
 | Búsqueda | pgvector (densa) + BM25 (`rank_bm25`, sparse) |
-| Embeddings / LLM | NVIDIA NIM (catálogo configurable, fallback a OpenAI/xAI/DeepSeek/Groq/Gemini) |
+| Embeddings | OpenAI `text-embedding-3-large` (1024 dims) |
+| LLM | OpenAI `gpt-4o-mini`, Kimi `kimi-k3`, xAI y NVIDIA NIM como último recurso (orden configurable en `ai_config.json`) |
+| Reranking | NVIDIA NIM (`llama-nemotron-rerank`) con Jina de respaldo |
 | Orquestación RAG | LangChain + LangGraph (pipeline agéntico) |
 | Colas / async | Celery + Redis (ingesta, evaluación del golden dataset) |
 | Bot | python-telegram-bot, detrás de una interfaz `BaseBot` reusable para otros canales |
@@ -106,7 +110,7 @@ Node.js.
 # Backend
 cd lexchiapas
 pip install -r requirements.txt
-cp .env.example .env   # llenar NVIDIA_API_KEY, DATABASE_URL, ADMIN_API_KEY, etc.
+cp .env.example .env   # llenar OPENAI_API_KEY, KIMI_API_KEY, NVIDIA_API_KEY (reranker), DATABASE_URL, ADMIN_API_KEY, etc.
 uvicorn app.main:app --reload
 
 # Frontend / panel de administrador (otra terminal)
@@ -126,10 +130,11 @@ celery -A app.workers.celery_app worker --loglevel=info
 ## Estado
 
 Backend y frontend funcionales de punta a punta, verificados contra datos
-reales (no mocks): 32 leyes activas del Estado de Chiapas (13,300+ chunks),
+reales (no mocks): 29 leyes del Estado de Chiapas (32 documentos activos,
+12,400+ chunks; el Código Civil son 4 libros),
 RAG híbrido con reranking real, pipeline agéntico (ruta por defecto en
 producción, medido contra un golden dataset de 24 preguntas), grafo de
-2,450+ relaciones legales reales (reforma/derogación/adición) extraídas del
+2,860 relaciones legales reales (reforma/derogación/adición) extraídas del
 corpus, panel de métricas con 5 vistas (uso, calidad, performance,
 guardrails, agente), y un explorador público del grafo de relaciones
 legales. Deploy 24/7 y cobertura del corpus completo del Congreso (146

@@ -9,7 +9,7 @@ el frontend web (`../lexchiapas-web/`).
 
 ```bash
 pip install -r requirements.txt --break-system-packages
-cp .env.example .env   # llenar NVIDIA_API_KEY, DATABASE_URL, SECRET_KEY, etc.
+cp .env.example .env   # llenar OPENAI_API_KEY, KIMI_API_KEY, NVIDIA_API_KEY (reranker), DATABASE_URL, SECRET_KEY, etc.
 ```
 
 ### Crear el esquema en una base NUEVA
@@ -65,7 +65,9 @@ celery -A app.workers.celery_app beat --loglevel=info
 El `worker` procesa la ingesta/actualizacion de leyes; el `beat` dispara las
 tareas programadas: actualizacion diaria de leyes y el canario de salud cada
 5 min (`app/workers/alerting_tasks.py`, alerta a Telegram si los embeddings
-mueren o hay un pico de errores -- requiere `ADMIN_TELEGRAM_CHAT_ID`). En
+mueren o hay un pico de errores) y, cada 6 h, el canario de modelos LLM (avisa
+si una entrada de `llm.fallback_order` fue retirada, rechaza las credenciales o
+se quedo sin credito) -- ambos requieren `ADMIN_TELEGRAM_CHAT_ID`. En
 deploy (Procfile) ambos procesos ya estan declarados como `worker:` y `beat:`.
 
 ## Registrar el webhook de Telegram (deploy)
