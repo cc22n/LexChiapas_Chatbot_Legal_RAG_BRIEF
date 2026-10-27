@@ -1,4 +1,5 @@
-"""Fuente unica de verdad de las 24 preguntas del golden dataset real del
+"""Fuente unica de verdad de las 38 preguntas (24 originales + 14 casos de "no
+encontrado" agregados el 2026-10-26) del golden dataset real del
 pipeline RAG (dense pgvector + BM25 + threshold + rerank + generacion
 grounded, ver app.rag.rag_pipeline.answer_question).
 
@@ -341,6 +342,185 @@ GOLDEN_DATASET: list[GoldenCase] = [
             "1/4 grounded=True -- variacion real de una corrida a otra, no "
             "ruido del clasificador (que es determinista a input fijo con "
             "temperature=0.0)."
+        ),
+    ),
+    # -------------------------------------------------------------------
+    # Bucket 2 ampliado (2026-10-26): 7 casos "no encontrado" estables (3 de 3
+    # repeticiones dieron grounded=False) + 7 limitaciones conocidas (3 grises
+    # donde el bot responde con algo tangencial y 4 inestables que dieron
+    # grounded=True en 1 de 3 repeticiones). Cada pregunta se verifico contra
+    # el texto real de los 12,450
+    # chunks activos (el tema no aparece, o aparece solo como mencion pasajera
+    # dentro de otra ley) y contra el comportamiento real del pipeline (cache
+    # desactivado, text-embedding-3-large). Motivo: con el modelo de embeddings
+    # nuevo el umbral de recuperacion (0.5) ya no separa "sin respuesta" (top1
+    # 0.61-0.82), asi que el segundo gate de grounding es lo que decide, y 4
+    # casos de este bucket no bastaban para medirlo.
+    # -------------------------------------------------------------------
+    GoldenCase(
+        name="test_no_encontrado_voluntad_anticipada_limitacion_conocida",
+        question="Como hago un documento de voluntad anticipada para rechazar tratamientos medicos en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "El termino 'voluntad anticipada' no aparece en ningun chunk activo "
+            "(la ley estatal, LEY_0149, esta pendiente de cargar). En 3 "
+            "repeticiones sin cache dio grounded True/False/False (y False en "
+            "la verificacion inicial): el segundo gate a veces acepta como "
+            "fundamento un articulo cercano de la Ley de Salud (art. 117 y "
+            "siguientes). Medido el 2026-10-26."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_escuela_particular",
+        question="Que requisitos hay para abrir una escuela particular en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_seguro_social",
+        question="Que dice la Ley del Seguro Social sobre la pension por invalidez?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_otra_entidad_jalisco",
+        question="Que dice el Codigo Civil de Jalisco sobre el divorcio?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_extincion_dominio_limitacion_conocida",
+        question="Como se tramita la extincion de dominio de un bien relacionado con un delito en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "No hay ley de extincion de dominio cargada; el tema solo se cita "
+            "de pasada en los arts. 122 y 149 de la Ley de Victimas (la ley "
+            "estatal esta pendiente). En 3 repeticiones sin cache dio grounded "
+            "False/True/False (y False en la verificacion inicial). Medido el "
+            "2026-10-26."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_seguridad_privada",
+        question="Que requisitos necesita una empresa de seguridad privada para operar en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_turismo_limitacion_conocida",
+        question="Que obligaciones tiene un prestador de servicios turisticos en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "No hay Ley de Turismo cargada (pendiente); el corpus solo tiene "
+            "menciones sueltas (p. ej. Ley de Transparencia art. 66, que lista "
+            "a los prestadores de servicios turisticos). En 3 repeticiones sin "
+            "cache dio grounded True/False/False (y False en la verificacion "
+            "inicial). Medido el 2026-10-26."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_ley_de_amparo",
+        question="Que dice la Ley de Amparo sobre la suspension del acto reclamado?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        # La Capa 1 de guardrails la rechaza (chunks vacios); no se exige
+        # expects_empty_retrieval porque ese comportamiento depende del umbral
+        # de la Capa 1, no de la ausencia de la ley en el corpus.
+        name="test_no_encontrado_impuestos_sat",
+        question="Que impuestos debe pagar una persona fisica ante el SAT?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_codigo_de_comercio_limitacion_conocida",
+        question="Como se constituye una sociedad mercantil segun el Codigo de Comercio?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "El Codigo de Comercio es federal y no esta en el corpus; el "
+            "Codigo Civil solo remite a el (arts. 775 y 2668) y regula las "
+            "sociedades civiles. En 3 repeticiones sin cache dio grounded "
+            "False/True/False; en la corrida del golden completo dio True (y "
+            "False en la verificacion inicial). Medido el 2026-10-26."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_propiedad_industrial",
+        question="Cual es el procedimiento para registrar una marca o solicitar una patente?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+    ),
+    GoldenCase(
+        name="test_no_encontrado_catastro_limitacion_conocida",
+        question="Como se actualiza el valor catastral de un predio en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "No hay Ley de Catastro cargada (LEY_0020 del Congreso, pendiente). "
+            "El art. 371 del Codigo Fiscal habla del registro catastral de "
+            "bienes inmuebles del Gobierno del Estado y el segundo gate lo "
+            "acepta: grounded=True con una respuesta tangencial que no explica "
+            "como se actualiza el valor catastral de un predio particular. "
+            "Observado en 1 corrida (2026-10-26)."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_licitacion_obra_limitacion_conocida",
+        question="Cual es el procedimiento para licitar una obra publica estatal en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "No hay Ley de Obra Publica cargada (LEY_0044 del Congreso, "
+            "pendiente). El art. 370 del Codigo Fiscal solo remite a 'las leyes "
+            "relativas a la obra publica' y la respuesta lo presenta como el "
+            "procedimiento. Observado en 1 corrida (2026-10-26)."
+        ),
+    ),
+    GoldenCase(
+        name="test_no_encontrado_condominio_limitacion_conocida",
+        question="Que dice la ley sobre las cuotas de mantenimiento y el reglamento de un condominio en Chiapas?",
+        ley_contains=None,
+        articulo_esperado=None,
+        expects_grounded=False,
+        known_limitation=True,
+        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
+        known_limitation_reason=(
+            "No hay Ley de Propiedad en Condominio cargada (LEY_0087 del "
+            "Congreso, pendiente). La Ley de Fraccionamientos (arts. 3 y 78) "
+            "menciona el regimen de propiedad en condominio de forma tangencial; "
+            "el bot reconoce en su texto que no hay informacion especifica sobre "
+            "cuotas y reglamento, pero aun asi sale grounded=True. Observado en "
+            "1 corrida (2026-10-26)."
         ),
     ),
     # -------------------------------------------------------------------
