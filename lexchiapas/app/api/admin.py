@@ -17,9 +17,8 @@ from app.config import get_settings, reload_ai_config
 from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
-from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE
-from app.repositories.admin_metrics import performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -127,49 +126,9 @@ def metrics_performance(db: Session = Depends(get_db)) -> dict:
     return performance_metrics(db)
 
 
-@router.get("/metrics/guardrails", dependencies=[Depends(require_admin)])
+@router.get("/metrics/guardrails", response_model=GuardrailsMetrics, dependencies=[Depends(require_admin)])
 def metrics_guardrails(db: Session = Depends(get_db)) -> dict:
-    # Compara contra el texto exacto de OUT_OF_SCOPE_MESSAGE (app/rag/guardrails.py)
-    # porque Capa 1 no marca los mensajes con ningun flag propio en la DB --
-    # es la misma comparacion que ya usa app/api/chat_web.py para el campo
-    # out_of_scope. Los intentos de jailbreak (detect_jailbreak_attempt) ya
-    # se persisten (columna messages.jailbreak_detected, poblada en
-    # app.bots.conversation_store.handle_turn sobre el mensaje role='user'),
-    # asi que jailbreak_attempts abajo ya es un conteo real, no un placeholder.
-    out_of_scope_per_day = db.execute(
-        text(
-            """
-            SELECT date(created_at) AS day, count(*) AS count
-            FROM messages
-            WHERE role = 'assistant' AND content = :out_of_scope_message
-            GROUP BY day
-            ORDER BY day DESC
-            LIMIT 30
-            """
-        ),
-        {"out_of_scope_message": OUT_OF_SCOPE_MESSAGE},
-    ).mappings().all()
-
-    total_out_of_scope = db.execute(
-        text(
-            """
-            SELECT count(*) AS count
-            FROM messages
-            WHERE role = 'assistant' AND content = :out_of_scope_message
-            """
-        ),
-        {"out_of_scope_message": OUT_OF_SCOPE_MESSAGE},
-    ).scalar_one()
-
-    jailbreak_attempts = db.execute(
-        text("SELECT count(*) FROM messages WHERE jailbreak_detected = true")
-    ).scalar_one()
-
-    return {
-        "out_of_scope_per_day": [dict(r) for r in out_of_scope_per_day],
-        "total_out_of_scope": total_out_of_scope,
-        "jailbreak_attempts": jailbreak_attempts,
-    }
+    return guardrails_metrics(db)
 
 
 @router.get("/metrics/agent", dependencies=[Depends(require_admin)])

@@ -143,3 +143,9 @@ class PerformanceMetrics(BaseModel):
     recent_chat_errors: list[ChatError]
     system_error_rate: SystemErrorRate
     primary_vs_fallback: PrimaryVsFallback
+
+
+class GuardrailsMetrics(BaseModel):
+    out_of_scope_per_day: list[DayCount]
+    total_out_of_scope: int
+    jailbreak_attempts: int

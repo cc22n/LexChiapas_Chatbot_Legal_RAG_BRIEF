@@ -1,4 +1,4 @@
-"""/admin/metrics/usage, /quality y /performance contra Postgres real: la respuesta cumple el esquema
+"""/admin/metrics/usage, /quality, /performance y /guardrails contra Postgres real: la respuesta cumple el esquema
 UsageMetrics y OpenAPI lo describe. Se omite si no hay base de datos."""
 
 import pytest
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from app.api.admin_auth import require_admin
 from app.database import SessionLocal
 from app.main import app
-from app.repositories.admin_metrics import performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 
 
 @pytest.fixture()
@@ -89,3 +89,18 @@ def test_openapi_describes_performance_response(client):
     schema = client.get("/openapi.json").json()
     ref = schema["paths"]["/admin/metrics/performance"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref["$ref"].endswith("/PerformanceMetrics")
+
+
+def test_guardrails_repository_matches_schema(db):
+    GuardrailsMetrics.model_validate(guardrails_metrics(db))
+
+
+def test_guardrails_endpoint_and_openapi(db, client):
+    res = client.get("/admin/metrics/guardrails")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == set(GuardrailsMetrics.model_fields)
+    assert isinstance(body["total_out_of_scope"], int) and isinstance(body["jailbreak_attempts"], int)
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/metrics/guardrails"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/GuardrailsMetrics")

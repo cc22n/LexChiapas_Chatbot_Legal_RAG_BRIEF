@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.llm.router import get_primary_model
+from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE
 
 
 def _rows(db: Session, sql: str) -> list[dict]:
@@ -382,4 +383,48 @@ def performance_metrics(db: Session) -> dict:
         "recent_chat_errors": [dict(r) for r in recent_chat_errors],
         "system_error_rate": dict(system_error_rate),
         "primary_vs_fallback": primary_vs_fallback,
+    }
+
+
+def guardrails_metrics(db: Session) -> dict:
+    # Compara contra el texto exacto de OUT_OF_SCOPE_MESSAGE (app/rag/guardrails.py)
+    # porque Capa 1 no marca los mensajes con ningun flag propio en la DB --
+    # es la misma comparacion que ya usa app/api/chat_web.py para el campo
+    # out_of_scope. Los intentos de jailbreak (detect_jailbreak_attempt) ya
+    # se persisten (columna messages.jailbreak_detected, poblada en
+    # app.bots.conversation_store.handle_turn sobre el mensaje role='user'),
+    # asi que jailbreak_attempts abajo ya es un conteo real, no un placeholder.
+    out_of_scope_per_day = db.execute(
+        text(
+            """
+            SELECT date(created_at) AS day, count(*) AS count
+            FROM messages
+            WHERE role = 'assistant' AND content = :out_of_scope_message
+            GROUP BY day
+            ORDER BY day DESC
+            LIMIT 30
+            """
+        ),
+        {"out_of_scope_message": OUT_OF_SCOPE_MESSAGE},
+    ).mappings().all()
+
+    total_out_of_scope = db.execute(
+        text(
+            """
+            SELECT count(*) AS count
+            FROM messages
+            WHERE role = 'assistant' AND content = :out_of_scope_message
+            """
+        ),
+        {"out_of_scope_message": OUT_OF_SCOPE_MESSAGE},
+    ).scalar_one()
+
+    jailbreak_attempts = db.execute(
+        text("SELECT count(*) FROM messages WHERE jailbreak_detected = true")
+    ).scalar_one()
+
+    return {
+        "out_of_scope_per_day": [dict(r) for r in out_of_scope_per_day],
+        "total_out_of_scope": total_out_of_scope,
+        "jailbreak_attempts": jailbreak_attempts,
     }
