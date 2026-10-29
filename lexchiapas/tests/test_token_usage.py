@@ -1,9 +1,20 @@
+import pytest
+
 """Acumulador de tokens por-turno (Fase 9.8/A10).
 
 Verifica la atribucion generacion-vs-auxiliar y que sea no-op seguro fuera de
 un turno (sin begin_usage)."""
 
 from app.llm.token_usage import begin_usage, generation_scope, get_usage, record_usage
+from app.llm import token_usage
+
+
+@pytest.fixture(autouse=True)
+def _reset_usage_contextvars():
+    """Otros tests ejecutan pipelines en este mismo contexto y dejan el acumulador
+    seteado (begin_usage); sin reiniciarlo, test_no_op_without_begin depende del orden."""
+    token_usage._usage.set(None)
+    token_usage._in_generation.set(False)
 
 
 def test_no_op_without_begin():

@@ -97,6 +97,7 @@ import json
 import logging
 import re
 import time
+from enum import StrEnum
 from typing import TypedDict
 
 from sqlalchemy.orm import Session
@@ -195,9 +196,19 @@ DECIDE_SYSTEM_PROMPT = (
     '{"accion": "ARTICULO_ESPECIFICO", "ley": "Codigo Penal para el Estado de Chiapas", "articulo": "270"}'
 )
 
-_VALID_DECISIONS = {
-    "ninguna", "busqueda_general", "busqueda_por_ley", "articulo_especifico", "historial_ley",
-}
+class Ruta(StrEnum):
+    """Rutas que puede decidir el nodo "decidir". Los valores son las mismas
+    cadenas de siempre (prompt, tests y logs no cambian); StrEnum compara igual
+    que str."""
+
+    NINGUNA = "ninguna"
+    BUSQUEDA_GENERAL = "busqueda_general"
+    BUSQUEDA_POR_LEY = "busqueda_por_ley"
+    ARTICULO_ESPECIFICO = "articulo_especifico"
+    HISTORIAL_LEY = "historial_ley"
+
+
+_VALID_DECISIONS = {r.value for r in Ruta}
 _NULLISH = {"NINGUNA", "NINGUNO", "N/A", "-", ""}
 
 _ACCION_RE = re.compile(r"ACCION\s*:\s*(\S+)", re.IGNORECASE)
@@ -249,12 +260,12 @@ def _normalize_decision_fields(
     # Downgrades seguros: si la accion pedida no trae los datos que
     # necesita, se cae a busqueda_general en vez de fallar o de forzar una
     # busqueda con datos incompletos (ver docstring de modulo, invariante 2).
-    if accion == "busqueda_por_ley" and not ley:
-        accion = "busqueda_general"
-    if accion == "articulo_especifico" and not (ley and articulo):
-        accion = "busqueda_general"
-    if accion == "historial_ley" and not ley:
-        accion = "busqueda_general"
+    if accion == Ruta.BUSQUEDA_POR_LEY and not ley:
+        accion = Ruta.BUSQUEDA_GENERAL
+    if accion == Ruta.ARTICULO_ESPECIFICO and not (ley and articulo):
+        accion = Ruta.BUSQUEDA_GENERAL
+    if accion == Ruta.HISTORIAL_LEY and not ley:
+        accion = Ruta.BUSQUEDA_GENERAL
 
     return accion, ley, articulo
 
@@ -358,7 +369,7 @@ def _node_decidir(state: AgentState) -> dict:
         {"role": "user", "content": f"Pregunta: {search_text}"},
     ]
 
-    decision, law_name, articulo = "busqueda_general", None, None
+    decision, law_name, articulo = Ruta.BUSQUEDA_GENERAL, None, None
     try:
         raw, model_used, _, _ = generate_with_fallback(
             messages, temperature=0.0, fast=True, response_format={"type": "json_object"}
@@ -400,13 +411,13 @@ def _node_buscar(state: AgentState) -> dict:
     # `question` en si NUNCA cambia -- ver AgentState.search_text.
     search_text = state.get("search_text") or state["question"]
     query_embedding = state.get("query_embedding")
-    decision = state.get("decision", "busqueda_general")
+    decision = state.get("decision", Ruta.BUSQUEDA_GENERAL)
     intentos = state.get("intentos", 0) + 1
 
-    if decision == "ninguna":
+    if decision == Ruta.NINGUNA:
         return {"chunks": [], "intentos": intentos}
 
-    if decision == "articulo_especifico":
+    if decision == Ruta.ARTICULO_ESPECIFICO:
         chunk = get_article(db, state["law_name"], state["articulo"])
         if chunk is None:
             # Fase 9.3: antes de admitir "no encontre informacion" sin mas,
@@ -418,7 +429,7 @@ def _node_buscar(state: AgentState) -> dict:
                 return {"chunks": [], "intentos": intentos, "clarification_options": ambiguous}
         return {"chunks": [chunk] if chunk is not None else [], "intentos": intentos}
 
-    if decision == "historial_ley":
+    if decision == Ruta.HISTORIAL_LEY:
         # Fase 8 (GraphRAG): consulta legal_relations en vez de retrieval
         # semantico -- ver app.rag.agent_tools.query_graph/relations_to_chunks
         # y la nota de la ruta en el docstring de modulo (invariante 6). Se
@@ -445,7 +456,7 @@ def _node_buscar(state: AgentState) -> dict:
     if was_expanded:
         query_embedding = embed_text(search_text)
 
-    if decision == "busqueda_por_ley":
+    if decision == Ruta.BUSQUEDA_POR_LEY:
         # Etapa 2: en un reintento se mantiene el MISMO law_name que decidio
         # el nodo "decidir" en el intento 1 -- ver _node_reformular para por
         # que el reintento NUNCA cambia de ruta (busqueda_por_ley <->
@@ -469,7 +480,7 @@ def _node_generar(state: AgentState) -> dict:
     conversation_history = state.get("conversation_history")
     technical = state.get("technical", False)
     chunks = state.get("chunks") or []
-    decision = state.get("decision", "busqueda_general")
+    decision = state.get("decision", Ruta.BUSQUEDA_GENERAL)
 
     # Fase 9.3 (coverage checker): un tercer camino ademas de
     # responder/admitir-no-encontrado -- pedir aclaracion cuando
@@ -497,7 +508,7 @@ def _node_generar(state: AgentState) -> dict:
             "grounded_gate": False,
         }
 
-    if decision in ("articulo_especifico", "historial_ley"):
+    if decision in (Ruta.ARTICULO_ESPECIFICO, Ruta.HISTORIAL_LEY):
         # Gate anti-alucinacion PROPIO de estas rutas (ver decision de diseno
         # completa en app.rag.agent_tools.get_article para articulo_especifico,
         # y query_graph/relations_to_chunks para historial_ley -- Fase 8): los
@@ -685,7 +696,7 @@ def _should_retry_after_generar(state: AgentState) -> str:
     de la MISMA ruta (opcion (b) del diseno, ver _node_reformular), y NUNCA
     se activa cuando el gate primario ya fue False desde el intento 1.
     """
-    if state.get("decision") not in ("busqueda_general", "busqueda_por_ley"):
+    if state.get("decision") not in (Ruta.BUSQUEDA_GENERAL, Ruta.BUSQUEDA_POR_LEY):
         return END
     if not state.get("grounded_gate", False):
         return END
@@ -921,7 +932,7 @@ def answer_question_agentic(
         aux_completion_tokens=aux_completion or None,
         grounding_classifier_model=final_state.get("grounding_classifier_model"),
         agent_trace=AgentTrace(
-            route=final_state.get("decision", "ninguna"),
+            route=str(final_state.get("decision", Ruta.NINGUNA)),
             law_name=final_state.get("law_name"),
             articulo=final_state.get("articulo"),
             intentos=final_state.get("intentos", 0),

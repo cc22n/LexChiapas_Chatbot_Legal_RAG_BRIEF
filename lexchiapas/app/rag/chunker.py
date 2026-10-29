@@ -1,6 +1,8 @@
 import re
-import unicodedata
 from dataclasses import dataclass, field
+
+# _strip_accents se conserva como alias: ingestion/load_ley_salud.py lo importa.
+from app.rag.text_utils import strip_accents as _strip_accents
 
 # La linea completa despues de TITULO/CAPITULO/SECCION debe ser SOLO un
 # ordinal reconocido (nada de texto extra), validado por _HEADER_LABEL_RE
@@ -300,11 +302,6 @@ FOOTER_RE = re.compile(
 # chunk_legal_text) en vez de una lista fija, para que esta proteccion
 # aplique a cualquier ley, no solo a la de Salud.
 _PAGE_NUMBER_RE = re.compile(r"^\s*\d{1,4}\s*$")
-
-
-def _strip_accents(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in normalized if not unicodedata.combining(c))
 
 
 @dataclass

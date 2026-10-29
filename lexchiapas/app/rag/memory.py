@@ -1,10 +1,13 @@
 import json
+import logging
 
 import redis
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Message
+
+logger = logging.getLogger("lexchiapas.memory")
 
 # Fase 2.6 (LexChiapas_Memoria_Conversacional.md): memoria de corto plazo por
 # ventana deslizante. NO memoria semantica con embeddings (explicitamente
@@ -81,15 +84,17 @@ def get_recent_history(
         cached = _get_redis_client().get(key)
         if cached is not None:
             return json.loads(cached)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Redis es solo cache: se degrada a Postgres, pero se deja rastro.
+        logger.debug("Redis no disponible (lectura del cache): %s", exc)
 
     history = _load_from_postgres(db, conversation_id, limit)
 
     try:
         _get_redis_client().setex(key, SESSION_CACHE_TTL_SECONDS, json.dumps(history))
-    except Exception:
-        pass
+    except Exception as exc:
+        # Redis es solo cache: se degrada a Postgres, pero se deja rastro.
+        logger.debug("Redis no disponible (escritura del cache): %s", exc)
 
     return history
 
@@ -106,5 +111,6 @@ def invalidate_history_cache(conversation_id: int) -> None:
     """
     try:
         _get_redis_client().delete(_cache_key(conversation_id))
-    except Exception:
-        pass
+    except Exception as exc:
+        # Redis es solo cache: se degrada a Postgres, pero se deja rastro.
+        logger.debug("Redis no disponible (invalidacion del cache): %s", exc)
