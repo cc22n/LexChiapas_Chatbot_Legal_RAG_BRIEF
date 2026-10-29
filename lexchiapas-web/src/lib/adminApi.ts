@@ -59,8 +59,8 @@ export interface QualityMetrics {
 
 export interface PerformanceMetrics {
   // avg_ms/p95_ms: el backend los serializa a veces como string numerico
-  // (AVG()/percentile_cont de Postgres via SQL crudo) -- Math.round() los
-  // coacciona bien igual, no hace falta Number() explicito.
+  // (AVG()/percentile_cont de Postgres via SQL crudo). Se convierten de forma
+  // explicita con Number() en formatMs (performance/page.tsx).
   latency: { avg_ms: number | null; p95_ms: number | null };
   // Desglose de latencia (item 3.2 de WEB_FRONTEND_PLAN.md Fase C.2) --
   // solo cubre mensajes que pasaron por el pipeline lineal real (no cache
@@ -73,7 +73,17 @@ export interface PerformanceMetrics {
     p95_generation_ms: number | null;
   };
   usage_by_model: { llm_model: string; count: number }[];
-  tokens_per_day: { day: string; prompt_tokens: number | null; completion_tokens: number | null }[];
+  // aux_*: tokens de las llamadas auxiliares (decidir/reformular/grounding/
+  // rewrite); total_tokens suma generacion + auxiliares. Pueden llegar como
+  // string numerico (sum() de Postgres via SQL crudo).
+  tokens_per_day: {
+    day: string;
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    aux_prompt_tokens: number | null;
+    aux_completion_tokens: number | null;
+    total_tokens: number | null;
+  }[];
   recent_ingestion_errors: {
     id: number;
     document_id: number;

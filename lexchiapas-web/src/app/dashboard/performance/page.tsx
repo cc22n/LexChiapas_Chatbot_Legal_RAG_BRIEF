@@ -6,9 +6,11 @@ import { LineChart } from "@/components/charts/LineChart";
 import { BarChartHorizontal } from "@/components/charts/BarChartHorizontal";
 import { DataTable } from "@/components/charts/DataTable";
 
-function formatMs(value: number | null): string {
+function formatMs(value: number | string | null): string {
   if (value == null) return "--";
-  return `${Math.round(value).toLocaleString("es-MX")} ms`;
+  const ms = Number(value);
+  if (!Number.isFinite(ms)) return "--";
+  return `${Math.round(ms).toLocaleString("es-MX")} ms`;
 }
 
 function pct(part: number, total: number): string {
