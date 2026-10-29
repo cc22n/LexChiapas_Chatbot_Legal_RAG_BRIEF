@@ -866,6 +866,9 @@ def answer_question_agentic(
     # Mismo patron que rag_pipeline.answer_question: solo se recalcula el
     # embedding si de verdad se reescribio algo, para no gastar una llamada
     # de mas cuando no hace falta.
+    # Arquitectura limpia, paso 1: devolver la conexion tras el lookup del
+    # cache, antes de las llamadas externas (rewrite, embeddings, nodo decidir).
+    release_connection(db)
     search_text, was_rewritten = rewrite_query(question, conversation_history)
     if was_rewritten:
         query_embedding = embed_text(search_text)

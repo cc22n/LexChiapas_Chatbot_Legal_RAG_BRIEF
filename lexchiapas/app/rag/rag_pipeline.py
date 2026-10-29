@@ -139,6 +139,10 @@ def answer_question(
             cached = cached.model_copy(update={"search_time_ms": None, "generation_time_ms": None})
             return cached, elapsed_ms
 
+    # Arquitectura limpia, paso 1: tras el lookup (o sin el) la sesion puede
+    # tener una transaccion de solo lectura abierta; se devuelve la conexion
+    # antes de las llamadas externas cortas (rewrite, embeddings, HyDE).
+    release_connection(db)
     search_start = time.monotonic()
 
     # Fase 6: reescribir SOLO si hace falta (pregunta corta + hay historial).
@@ -179,6 +183,8 @@ def answer_question(
             query_embedding = embed_text(hypothetical_answer)
 
     candidates = hybrid_search(db, search_question, query_embedding)
+    # El reranker es una llamada HTTP externa: sin conexion retenida.
+    release_connection(db)
     top_chunks = rerank(search_question, candidates)
 
     # search_time_ms (WEB_FRONTEND_PLAN.md Fase C.2, item 3.2): todo lo de

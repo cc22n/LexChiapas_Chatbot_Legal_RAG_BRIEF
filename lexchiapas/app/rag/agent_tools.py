@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.llm.providers import embed_text
+from app.rag.db_session import release_connection
 from app.rag.reranker import rerank
 from app.rag.retriever import RetrievedChunk, fuzzy_ilike_pattern, hybrid_search, normalize_for_match
 
@@ -32,6 +33,7 @@ def search_laws(
     if query_embedding is None:
         query_embedding = embed_text(query_text)
     candidates = hybrid_search(db, query_text, query_embedding)
+    release_connection(db)  # el reranker es una llamada externa
     return rerank(query_text, candidates)
 
 
@@ -57,6 +59,7 @@ def search_by_law(
     if query_embedding is None:
         query_embedding = embed_text(query_text)
     candidates = hybrid_search(db, query_text, query_embedding, document_filter=law_name)
+    release_connection(db)  # el reranker es una llamada externa
     return rerank(query_text, candidates)
 
 
