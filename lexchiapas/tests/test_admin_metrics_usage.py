@@ -1,4 +1,4 @@
-"""/admin/metrics/usage y /quality contra Postgres real: la respuesta cumple el esquema
+"""/admin/metrics/usage, /quality y /performance contra Postgres real: la respuesta cumple el esquema
 UsageMetrics y OpenAPI lo describe. Se omite si no hay base de datos."""
 
 import pytest
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from app.api.admin_auth import require_admin
 from app.database import SessionLocal
 from app.main import app
-from app.repositories.admin_metrics import quality_metrics, usage_metrics
-from app.schemas.admin_metrics import QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import PerformanceMetrics, QualityMetrics, UsageMetrics
 
 
 @pytest.fixture()
@@ -67,3 +67,25 @@ def test_openapi_describes_quality_response(client):
     schema = client.get("/openapi.json").json()
     ref = schema["paths"]["/admin/metrics/quality"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref["$ref"].endswith("/QualityMetrics")
+
+
+def test_performance_repository_matches_schema(db):
+    PerformanceMetrics.model_validate(performance_metrics(db))
+
+
+def test_performance_endpoint_sends_numbers_not_strings(db, client):
+    res = client.get("/admin/metrics/performance")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == set(PerformanceMetrics.model_fields)
+    for value in (*body["latency"].values(), *body["latency_breakdown"].values()):
+        assert value is None or isinstance(value, (int, float))
+    for row in body["tokens_per_day"]:
+        for key in ("prompt_tokens", "completion_tokens", "aux_prompt_tokens", "total_tokens"):
+            assert row[key] is None or isinstance(row[key], int)
+
+
+def test_openapi_describes_performance_response(client):
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/metrics/performance"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/PerformanceMetrics")

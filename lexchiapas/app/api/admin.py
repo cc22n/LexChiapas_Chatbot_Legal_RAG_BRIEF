@@ -18,8 +18,8 @@ from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE
-from app.repositories.admin_metrics import quality_metrics, usage_metrics
-from app.schemas.admin_metrics import QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import PerformanceMetrics, QualityMetrics, UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -122,154 +122,9 @@ def metrics_quality(db: Session = Depends(get_db)) -> dict:
     return quality_metrics(db)
 
 
-@router.get("/metrics/performance", dependencies=[Depends(require_admin)])
+@router.get("/metrics/performance", response_model=PerformanceMetrics, dependencies=[Depends(require_admin)])
 def metrics_performance(db: Session = Depends(get_db)) -> dict:
-    latency = db.execute(
-        text(
-            """
-            SELECT
-              avg(response_time_ms) AS avg_ms,
-              percentile_cont(0.95) WITHIN GROUP (ORDER BY response_time_ms) AS p95_ms
-            FROM messages
-            WHERE role = 'assistant' AND response_time_ms IS NOT NULL
-            """
-        )
-    ).mappings().one()
-
-    # latency_breakdown (item 3.2 de WEB_FRONTEND_PLAN.md Fase C.2): solo
-    # existe en mensajes que pasaron por app.rag.rag_pipeline.answer_question
-    # de verdad (no cache hit, no pipeline agentico) -- ver
-    # app.models.message.Message.search_time_ms para el detalle de que cubre
-    # cada campo. avg()/percentile_cont() ignoran NULL automaticamente, asi
-    # que mensajes viejos (de antes de este cambio) o cache hits quedan
-    # excluidos solos, sin filtro WHERE extra.
-    latency_breakdown = db.execute(
-        text(
-            """
-            SELECT
-              avg(search_time_ms) AS avg_search_ms,
-              percentile_cont(0.95) WITHIN GROUP (ORDER BY search_time_ms) AS p95_search_ms,
-              avg(generation_time_ms) AS avg_generation_ms,
-              percentile_cont(0.95) WITHIN GROUP (ORDER BY generation_time_ms) AS p95_generation_ms
-            FROM messages
-            WHERE role = 'assistant'
-            """
-        )
-    ).mappings().one()
-
-    usage_by_model = db.execute(
-        text(
-            """
-            SELECT llm_model, count(*) AS count
-            FROM messages
-            WHERE role = 'assistant' AND llm_model IS NOT NULL
-            GROUP BY llm_model
-            ORDER BY count DESC
-            """
-        )
-    ).mappings().all()
-
-    # Fase 9.8/A10: ademas de los tokens de generacion, se suman los
-    # auxiliares (decidir/reformular/grounding/rewrite) y un total real. Las
-    # claves prompt_tokens/completion_tokens se conservan para no romper el
-    # dashboard existente.
-    tokens_per_day = db.execute(
-        text(
-            """
-            SELECT date(created_at) AS day,
-                   sum(prompt_tokens) AS prompt_tokens,
-                   sum(completion_tokens) AS completion_tokens,
-                   sum(aux_prompt_tokens) AS aux_prompt_tokens,
-                   sum(aux_completion_tokens) AS aux_completion_tokens,
-                   sum(
-                     coalesce(prompt_tokens, 0) + coalesce(completion_tokens, 0)
-                     + coalesce(aux_prompt_tokens, 0) + coalesce(aux_completion_tokens, 0)
-                   ) AS total_tokens
-            FROM messages
-            WHERE role = 'assistant'
-            GROUP BY day
-            ORDER BY day DESC
-            LIMIT 30
-            """
-        )
-    ).mappings().all()
-
-    recent_ingestion_errors = db.execute(
-        text(
-            """
-            SELECT id, document_id, status, error_message, started_at, completed_at
-            FROM ingestion_logs
-            WHERE status = 'failed'
-            ORDER BY started_at DESC NULLS LAST
-            LIMIT 20
-            """
-        )
-    ).mappings().all()
-
-    # recent_chat_errors (item 14 "Errores del sistema" de
-    # LexChiapas_Dashboard_Metricas.md / WEB_FRONTEND_PLAN.md Fase C.1, gap
-    # senalado al corregir esa fila: system_error_rate ya daba el conteo
-    # agregado pero no un listado navegable, mismo patron que
-    # recent_ingestion_errors arriba). found_answer IS NULL identifica un
-    # turno donde el pipeline trueno con una excepcion real (ver
-    # app.bots.conversation_store.handle_turn) -- error_message trae el
-    # traceback completo persistido ahi.
-    recent_chat_errors = db.execute(
-        text(
-            """
-            SELECT id, conversation_id, error_message, created_at
-            FROM messages
-            WHERE role = 'assistant' AND found_answer IS NULL
-            ORDER BY created_at DESC
-            LIMIT 20
-            """
-        )
-    ).mappings().all()
-
-    # system_error_rate: distinto de not_found_rate (metrics/quality), que
-    # ya excluye found_answer IS NULL correctamente -- esa es la fuente de
-    # verdad de "no encontrado" legitimo del RAG. Este conteo es sobre el
-    # OTRO caso: found_answer IS NULL significa que el pipeline trueno con
-    # una excepcion real ANTES de poder decidir grounded/no-grounded (ver
-    # app.bots.conversation_store.handle_turn, error_message), no que el RAG
-    # busco de verdad y no encontro nada.
-    system_error_rate = db.execute(
-        text(
-            """
-            SELECT
-              count(*) FILTER (WHERE found_answer IS NULL) AS system_errors,
-              count(*) AS total
-            FROM messages
-            WHERE role = 'assistant'
-            """
-        )
-    ).mappings().one()
-
-    # primary_vs_fallback (item 3.1 de WEB_FRONTEND_PLAN.md Fase C.2): no
-    # requiere columna ni dato nuevo -- llm_model ya guarda que modelo
-    # respondio de verdad, "primario" es solo compararlo contra
-    # fallback_order[0] de ai_config.json AHORA, no algo que haga falta
-    # capturar en el momento de generar. Se calcula en Python sobre
-    # usage_by_model (ya trae el conteo por modelo) en vez de otra query.
-    primary_model = get_primary_model()
-    primary_count = sum(r["count"] for r in usage_by_model if r["llm_model"] == primary_model)
-    fallback_count = sum(r["count"] for r in usage_by_model if r["llm_model"] != primary_model)
-    primary_vs_fallback = {
-        "primary_model": primary_model,
-        "primary_count": primary_count,
-        "fallback_count": fallback_count,
-    }
-
-    return {
-        "latency": dict(latency),
-        "latency_breakdown": dict(latency_breakdown),
-        "usage_by_model": [dict(r) for r in usage_by_model],
-        "tokens_per_day": [dict(r) for r in tokens_per_day],
-        "recent_ingestion_errors": [dict(r) for r in recent_ingestion_errors],
-        "recent_chat_errors": [dict(r) for r in recent_chat_errors],
-        "system_error_rate": dict(system_error_rate),
-        "primary_vs_fallback": primary_vs_fallback,
-    }
+    return performance_metrics(db)
 
 
 @router.get("/metrics/guardrails", dependencies=[Depends(require_admin)])

@@ -65,9 +65,9 @@ export interface QualityMetrics {
 }
 
 export interface PerformanceMetrics {
-  // avg_ms/p95_ms: el backend los serializa a veces como string numerico
-  // (AVG()/percentile_cont de Postgres via SQL crudo). Se convierten de forma
-  // explicita con Number() en formatMs (performance/page.tsx).
+  // avg_ms/p95_ms: el esquema PerformanceMetrics (backend) los declara float,
+  // asi que llegan como numero. formatMs (performance/page.tsx) conserva un
+  // Number() defensivo por si un cliente viejo los recibe como string.
   latency: { avg_ms: number | null; p95_ms: number | null };
   // Desglose de latencia (item 3.2 de WEB_FRONTEND_PLAN.md Fase C.2) --
   // solo cubre mensajes que pasaron por el pipeline lineal real (no cache
