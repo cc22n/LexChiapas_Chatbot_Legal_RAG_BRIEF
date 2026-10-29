@@ -42,6 +42,9 @@ export interface UsageMetrics {
   // Agregados por el backend 2026-07-24 (item 4/16 de LexChiapas_Dashboard_Metricas.md).
   top_questions: { content: string; count: number }[];
   conversations_by_platform: { platform: string; count: number }[];
+  // Mismas dos series acotadas a Telegram (agregadas al esquema UsageMetrics).
+  questions_per_day_telegram: { day: string; count: number }[];
+  top_questions_telegram: { content: string; count: number }[];
 }
 
 export interface QualityMetrics {

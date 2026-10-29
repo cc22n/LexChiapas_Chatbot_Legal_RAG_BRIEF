@@ -18,6 +18,8 @@ from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE
+from app.repositories.admin_metrics import usage_metrics
+from app.schemas.admin_metrics import UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -110,118 +112,9 @@ def deactivate_document(document_id: int, db: Session = Depends(get_db)) -> dict
     return {"ok": True}
 
 
-@router.get("/metrics/usage", dependencies=[Depends(require_admin)])
+@router.get("/metrics/usage", response_model=UsageMetrics, dependencies=[Depends(require_admin)])
 def metrics_usage(db: Session = Depends(get_db)) -> dict:
-    questions_per_day = db.execute(
-        text(
-            """
-            SELECT date(created_at) AS day, count(*) AS count
-            FROM messages
-            WHERE role = 'user'
-            GROUP BY day
-            ORDER BY day DESC
-            LIMIT 30
-            """
-        )
-    ).mappings().all()
-
-    unique_users_by_platform = db.execute(
-        text(
-            """
-            SELECT platform, count(DISTINCT user_id) AS unique_users
-            FROM conversations
-            GROUP BY platform
-            """
-        )
-    ).mappings().all()
-
-    top_laws = db.execute(
-        text(
-            """
-            SELECT elem->>'document_nombre' AS ley, count(*) AS mentions
-            FROM messages, jsonb_array_elements(retrieved_chunks) AS elem
-            WHERE role = 'assistant' AND retrieved_chunks IS NOT NULL
-            GROUP BY ley
-            ORDER BY mentions DESC
-            LIMIT 10
-            """
-        )
-    ).mappings().all()
-
-    # Dedup EXACTO por texto de pregunta (no clustering semantico) -- cumple
-    # el requisito #4 de LexChiapas_Dashboard_Metricas.md / WEB_FRONTEND_PLAN.md
-    # Fase C.1 sin agregar dependencias nuevas.
-    top_questions = db.execute(
-        text(
-            """
-            SELECT content, count(*) AS count
-            FROM messages
-            WHERE role = 'user'
-            GROUP BY content
-            ORDER BY count DESC
-            LIMIT 10
-            """
-        )
-    ).mappings().all()
-
-    conversations_by_platform = db.execute(
-        text("SELECT platform, count(*) AS count FROM conversations GROUP BY platform")
-    ).mappings().all()
-
-    # questions_per_day_telegram / top_questions_telegram (LexChiapas_Plan_
-    # Futuro.md item #7): mismas dos queries de arriba pero acotadas a
-    # conversations.platform = 'telegram' via JOIN (messages NO tiene columna
-    # platform propia). Nombre de campo _telegram explicito (no un shape
-    # generico top_questions_by_platform con lista anidada por plataforma):
-    # las variantes YA genericas de este archivo (unique_users_by_platform,
-    # conversations_by_platform) son agregados triviales de una fila por
-    # plataforma; top_questions/questions_per_day son consultas "top-N", y
-    # generalizarlas a top-N-por-plataforma exige window functions
-    # (ROW_NUMBER() OVER PARTITION BY platform) y anidar listas dentro de
-    # cada elemento -- complejidad real para un caso con solo 2 plataformas
-    # (telegram, web) donde el pedido concreto (item #7) es exclusivamente
-    # "el equivalente al dashboard web pero para telegram". Sin un frontend
-    # ya construido esperando el shape generico (a diferencia de AgentTrace/
-    # laws), el campo explicito es el diseno mas simple que cumple el pedido
-    # real; se puede migrar a un shape por-plataforma despues si aparece un
-    # tercer canal real.
-    questions_per_day_telegram = db.execute(
-        text(
-            """
-            SELECT date(m.created_at) AS day, count(*) AS count
-            FROM messages m
-            JOIN conversations c ON c.id = m.conversation_id
-            WHERE m.role = 'user' AND c.platform = 'telegram'
-            GROUP BY day
-            ORDER BY day DESC
-            LIMIT 30
-            """
-        )
-    ).mappings().all()
-
-    top_questions_telegram = db.execute(
-        text(
-            """
-            SELECT m.content AS content, count(*) AS count
-            FROM messages m
-            JOIN conversations c ON c.id = m.conversation_id
-            WHERE m.role = 'user' AND c.platform = 'telegram'
-            GROUP BY m.content
-            ORDER BY count DESC
-            LIMIT 10
-            """
-        )
-    ).mappings().all()
-
-    return {
-        "questions_per_day": [dict(r) for r in questions_per_day],
-        "unique_users_by_platform": [dict(r) for r in unique_users_by_platform],
-        "top_laws": [dict(r) for r in top_laws],
-        "top_questions": [dict(r) for r in top_questions],
-        "conversations_by_platform": [dict(r) for r in conversations_by_platform],
-        "questions_per_day_telegram": [dict(r) for r in questions_per_day_telegram],
-        "top_questions_telegram": [dict(r) for r in top_questions_telegram],
-    }
+    return usage_metrics(db)
 
 
 @router.get("/metrics/quality", dependencies=[Depends(require_admin)])
