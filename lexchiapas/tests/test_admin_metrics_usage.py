@@ -1,4 +1,4 @@
-"""/admin/metrics/usage contra Postgres real: la respuesta cumple el esquema
+"""/admin/metrics/usage y /quality contra Postgres real: la respuesta cumple el esquema
 UsageMetrics y OpenAPI lo describe. Se omite si no hay base de datos."""
 
 import pytest
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from app.api.admin_auth import require_admin
 from app.database import SessionLocal
 from app.main import app
-from app.repositories.admin_metrics import usage_metrics
-from app.schemas.admin_metrics import UsageMetrics
+from app.repositories.admin_metrics import quality_metrics, usage_metrics
+from app.schemas.admin_metrics import QualityMetrics, UsageMetrics
 
 
 @pytest.fixture()
@@ -48,3 +48,22 @@ def test_openapi_describes_usage_response(client):
     schema = client.get("/openapi.json").json()
     ref = schema["paths"]["/admin/metrics/usage"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref["$ref"].endswith("/UsageMetrics")
+
+
+def test_quality_repository_matches_schema(db):
+    QualityMetrics.model_validate(quality_metrics(db))
+
+
+def test_quality_endpoint_returns_declared_fields(db, client):
+    res = client.get("/admin/metrics/quality")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == set(QualityMetrics.model_fields)
+    assert body["avg_similarity_grounded"] is None or isinstance(body["avg_similarity_grounded"], float)
+    assert all(b["range"] in {"0.5-0.6", "0.6-0.7", "0.7-0.8", "0.8-0.9", "0.9-1.0"} for b in body["similarity_histogram"])
+
+
+def test_openapi_describes_quality_response(client):
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/metrics/quality"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/QualityMetrics")

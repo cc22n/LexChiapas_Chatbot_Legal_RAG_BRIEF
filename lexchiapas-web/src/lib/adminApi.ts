@@ -50,6 +50,8 @@ export interface UsageMetrics {
 export interface QualityMetrics {
   not_found_rate: { not_found: number; total: number };
   feedback_ratio: { rating: string; count: number }[];
+  // Mismo agrupado acotado a feedback de conversaciones de Telegram.
+  feedback_ratio_telegram: { rating: string; count: number }[];
   top_cited_articles: { ley: string | null; articulo: string | null; mentions: number }[];
   // Agregados por el backend 2026-07-24 (item 10/11) -- solo promedia/agrupa
   // chunks con passed_threshold=true (similitud coseno real, no BM25).
@@ -58,6 +60,8 @@ export interface QualityMetrics {
   // Buckets fijos de 0.1 ("0.5-0.6".."0.9-1.0"); buckets sin datos vienen
   // AUSENTES del array (no en 0) -- el frontend debe tratarlos como 0.
   similarity_histogram: { range: string; count: number }[];
+  // Solo mensajes que pasaron por la decision de reescritura de la pregunta.
+  grounded_by_rewrite: { was_rewritten: boolean; grounded: number; total: number }[];
 }
 
 export interface PerformanceMetrics {
