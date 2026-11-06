@@ -106,9 +106,7 @@ from app.llm.providers import embed_text
 from app.llm.router import AllModelsFailedError, generate_with_fallback
 from app.llm.token_usage import begin_usage, get_usage
 from app.rag.agent_parsers import (  # noqa: F401  (re-export: los tests importan estos nombres de aqui)
-    _VALID_DECISIONS,
     Ruta,
-    _normalize_decision_fields,
     _parse_decision,
     _parse_decision_json,
 )
