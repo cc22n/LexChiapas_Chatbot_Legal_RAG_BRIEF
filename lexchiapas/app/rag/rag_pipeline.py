@@ -7,6 +7,7 @@ from app.llm.providers import embed_text
 from app.llm.token_usage import begin_usage, get_usage
 from app.rag.agent_tools import get_articulos_historial_bulk
 from app.rag.db_session import release_connection
+from app.rag.filler_guard import strip_unsupported_filler
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -229,6 +230,13 @@ def answer_question(
         grounded, grounding_classifier_model = answer_is_grounded_in_practice(
             question, answer, top_chunks
         )
+    if grounded:
+        # Relleno con conocimiento propio tras admitir falta de informacion
+        # (ver app.rag.filler_guard): se quita y la respuesta no cuenta como
+        # fundamentada.
+        answer, padded = strip_unsupported_filler(answer)
+        if padded:
+            grounded = False
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
 

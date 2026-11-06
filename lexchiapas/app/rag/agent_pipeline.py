@@ -121,6 +121,7 @@ from app.rag.agent_tools import (
     search_laws,
 )
 from app.rag.db_session import release_connection
+from app.rag.filler_guard import strip_unsupported_filler
 from app.rag.generator import generate_answer
 from app.rag.grounding import answer_is_grounded_in_practice
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE, classify_intent, detect_smalltalk_response
@@ -378,6 +379,11 @@ def _node_generar(state: AgentState) -> dict:
         grounded, grounding_classifier_model = answer_is_grounded_in_practice(
             question, answer, chunks
         )
+    if grounded:
+        # Mismo guardia que el pipeline lineal (app.rag.filler_guard).
+        answer, padded = strip_unsupported_filler(answer)
+        if padded:
+            grounded = False
 
     return {
         "answer": answer,

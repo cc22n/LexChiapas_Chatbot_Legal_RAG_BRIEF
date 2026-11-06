@@ -34,7 +34,7 @@ import app.rag.rag_pipeline as rag_pipeline
 # false, medido que empeora retrieval con el modelo de embeddings actual) y
 # solo el pipeline lineal lo invoca condicionalmente -- si se reactiva algun
 # dia, portarlo al agente y agregarlo a esta lista.
-SHARED_OPTIMIZATIONS = ("cache_lookup", "cache_store", "expand_legal_synonyms")
+SHARED_OPTIMIZATIONS = ("cache_lookup", "cache_store", "expand_legal_synonyms", "strip_unsupported_filler")
 
 PIPELINE_MODULES = (
     ("rag_pipeline", rag_pipeline),
