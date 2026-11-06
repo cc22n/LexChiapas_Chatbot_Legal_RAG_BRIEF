@@ -93,11 +93,8 @@ tarea, leelas dos veces si vas a tocar este archivo):
    de ley.
 """
 
-import json
 import logging
-import re
 import time
-from enum import StrEnum
 from typing import TypedDict
 
 from sqlalchemy.orm import Session
@@ -108,6 +105,14 @@ from app.config import get_ai_config
 from app.llm.providers import embed_text
 from app.llm.router import AllModelsFailedError, generate_with_fallback
 from app.llm.token_usage import begin_usage, get_usage
+from app.rag.agent_parsers import (  # noqa: F401  (re-export: los tests importan estos nombres de aqui)
+    _VALID_DECISIONS,
+    Ruta,
+    _normalize_decision_fields,
+    _parse_decision,
+    _parse_decision_json,
+)
+from app.rag.agent_prompts import DECIDE_SYSTEM_PROMPT, REFORMULATE_SYSTEM_PROMPT  # noqa: F401
 from app.rag.agent_tools import (
     get_article,
     get_article_ambiguity,
@@ -134,173 +139,6 @@ logger = logging.getLogger("lexchiapas.agent_pipeline")
 # ---------------------------------------------------------------------------
 # Nodo "decidir"
 # ---------------------------------------------------------------------------
-
-# Migrado a JSON mode (2026-08-06, auditoria de integracion LLM -- ver
-# LexChiapas_Plan_Futuro.md Parte C.1 para el experimento real que confirmo
-# response_format={"type":"json_object"} viable en 4/5 proveedores del
-# fallback_order: minimax-m3, glm-5.2, gpt-4o-mini, grok-4.20 aceptaron el
-# parametro y devolvieron JSON valido de forma confiable; deepseek-v4-pro
-# dio timeout en el experimento, INCONCLUSO por infra, no por
-# incompatibilidad real -- si falla con este parametro, generate_with_fallback
-# ya lo trata como cualquier otro fallo de proveedor y pasa al siguiente). El
-# parser de texto plano (_parse_decision) se mantiene intacto como red de
-# seguridad para el proveedor que ignore response_format -- ver
-# _parse_decision_json/_parse_decision abajo.
-DECIDE_SYSTEM_PROMPT = (
-    "Analizas una pregunta de un usuario sobre leyes y reglamentos de "
-    "Chiapas, Mexico, para decidir COMO buscar la respuesta. Responde "
-    "UNICAMENTE con un objeto JSON, sin texto adicional antes ni despues, "
-    "con EXACTAMENTE estas 3 claves:\n"
-    '{"accion": "<NINGUNA|BUSQUEDA_GENERAL|BUSQUEDA_POR_LEY|ARTICULO_ESPECIFICO|HISTORIAL_LEY>", '
-    '"ley": <nombre de la ley o codigo mencionado explicitamente, o null>, '
-    '"articulo": <numero de articulo mencionado explicitamente, o null>}\n\n'
-    "Para 'ley': si el usuario escribio un nombre COMPLETO u oficial (incluye "
-    "frases como 'de Procedimientos', 'para el Estado de Chiapas', numero de "
-    "Libro, etc.), copialo TAL CUAL lo escribio, sin acortarlo -- varias leyes "
-    "de Chiapas comparten las mismas palabras clave (ej. 'Codigo Penal' vs "
-    "'Codigo de Procedimientos Penales'; los distintos Libros del 'Codigo "
-    "Civil') y acortar el nombre le impide al sistema distinguir cual de "
-    "ellas es. Usa una forma corta/generica (ej. 'codigo penal') SOLO cuando "
-    "el usuario mismo la uso de forma corta.\n\n"
-    "Usa ARTICULO_ESPECIFICO SOLO si la pregunta pide el contenido VIGENTE de "
-    "un numero de articulo concreto de una ley identificable (ej. 'que dice "
-    "el articulo 45 del codigo civil de Chiapas'). Usa HISTORIAL_LEY si la "
-    "pregunta es sobre la HISTORIA de una ley o articulo -- sus reformas, "
-    "derogaciones, adiciones, o que le paso a traves del tiempo (ej. 'que "
-    "reformas ha tenido el codigo civil de Chiapas', 'que le paso a la ley "
-    "de proteccion animal', 'cuando se reformo el articulo 214 del codigo "
-    "penal') -- en vez de su contenido vigente actual; requiere identificar "
-    "la ley igual que BUSQUEDA_POR_LEY. Usa BUSQUEDA_POR_LEY si la pregunta "
-    "menciona una ley o codigo especifico por nombre pero NO pide un numero "
-    "de articulo puntual ni su historial de reformas. Usa BUSQUEDA_GENERAL "
-    "para cualquier otra pregunta legal de Chiapas sin ley especifica "
-    "mencionada. Usa NINGUNA solo si la pregunta claramente no requiere "
-    "ninguna busqueda legal (saludo, agradecimiento, despedida).\n\n"
-    "Ejemplo 1:\n"
-    "Pregunta: Que sanciones existen por tortura en Chiapas?\n"
-    '{"accion": "BUSQUEDA_GENERAL", "ley": null, "articulo": null}\n\n'
-    "Ejemplo 2:\n"
-    "Pregunta: Que dice el articulo 270 del codigo penal de Chiapas?\n"
-    '{"accion": "ARTICULO_ESPECIFICO", "ley": "codigo penal", "articulo": "270"}\n\n'
-    "Ejemplo 3:\n"
-    "Pregunta: Que dice la ley de transparencia de Chiapas sobre solicitudes de informacion?\n"
-    '{"accion": "BUSQUEDA_POR_LEY", "ley": "ley de transparencia", "articulo": null}\n\n'
-    "Ejemplo 4:\n"
-    "Pregunta: Gracias, eso era todo\n"
-    '{"accion": "NINGUNA", "ley": null, "articulo": null}\n\n'
-    "Ejemplo 5:\n"
-    "Pregunta: Que reformas ha tenido el Codigo de Atencion a la Familia de Chiapas?\n"
-    '{"accion": "HISTORIAL_LEY", "ley": "codigo de atencion a la familia", "articulo": null}\n\n'
-    "Ejemplo 6 (nombre completo -- NO acortar, ver instruccion arriba):\n"
-    "Pregunta: Que dice el articulo 270 del Codigo Penal para el Estado de Chiapas?\n"
-    '{"accion": "ARTICULO_ESPECIFICO", "ley": "Codigo Penal para el Estado de Chiapas", "articulo": "270"}'
-)
-
-class Ruta(StrEnum):
-    """Rutas que puede decidir el nodo "decidir". Los valores son las mismas
-    cadenas de siempre (prompt, tests y logs no cambian); StrEnum compara igual
-    que str."""
-
-    NINGUNA = "ninguna"
-    BUSQUEDA_GENERAL = "busqueda_general"
-    BUSQUEDA_POR_LEY = "busqueda_por_ley"
-    ARTICULO_ESPECIFICO = "articulo_especifico"
-    HISTORIAL_LEY = "historial_ley"
-
-
-_VALID_DECISIONS = {r.value for r in Ruta}
-_NULLISH = {"NINGUNA", "NINGUNO", "N/A", "-", ""}
-
-_ACCION_RE = re.compile(r"ACCION\s*:\s*(\S+)", re.IGNORECASE)
-_LEY_RE = re.compile(r"LEY\s*:\s*(.+)", re.IGNORECASE)
-_ARTICULO_RE = re.compile(r"ARTICULO\s*:\s*(.+)", re.IGNORECASE)
-
-
-def _normalize_decision_fields(
-    accion_raw: object, ley_raw: object, articulo_raw: object
-) -> tuple[str, str | None, str | None] | None:
-    """Normaliza y valida los 3 campos crudos (accion/ley/articulo) sin
-    importar si vinieron del parser JSON o del parser regex de texto plano
-    (ver _parse_decision_json/_parse_decision abajo) -- misma logica de
-    downgrades seguros y de tolerancia a sufijos de articulo, centralizada
-    aca para que los dos caminos de parseo no puedan divergir. Devuelve None
-    si `accion_raw` no es una de las 5 acciones validas -- el llamador debe
-    caer al default seguro (busqueda_general) en ese caso, nunca bloquear ni
-    asumir NINGUNA."""
-    if not accion_raw:
-        return None
-    accion = str(accion_raw).strip().lower().rstrip(".,;")
-    if accion not in _VALID_DECISIONS:
-        return None
-
-    ley = str(ley_raw).strip() if ley_raw else None
-    if ley and ley.upper() in _NULLISH:
-        ley = None
-
-    articulo = None
-    if articulo_raw:
-        articulo_clean = str(articulo_raw).strip().rstrip(".,;")
-        if articulo_clean and articulo_clean.upper() not in _NULLISH:
-            # Bug real encontrado y corregido (Etapa 1, ver app.rag.chunker.py
-            # ARTICULO_RE para el mismo patron ya conocido): chunks.articulo_numero
-            # guarda el sufijo latino cuando el articulo lo tiene ("15 Bis", "117
-            # BIS", "278-A") -- son comunes en este corpus (Codigo Penal en
-            # particular tiene muchos). Extraer SOLO el digito inicial (version
-            # anterior de este parser) descartaba el sufijo, asi que
-            # get_article() nunca encontraba estos articulos aunque existieran
-            # de verdad -- un "articulo_especifico" pedido con sufijo siempre
-            # caia a "no encontrado". Se preserva el numero completo (digitos +
-            # sufijo/guion tal como lo escribio el LLM); get_article() compara
-            # sin distinguir mayusculas/espacios para tolerar variantes de
-            # formato ("15 Bis" vs "15 BIS").
-            match = re.search(r"\d+[\s-]?[A-Za-z]*", articulo_clean)
-            if match:
-                articulo = match.group(0).strip()
-
-    # Downgrades seguros: si la accion pedida no trae los datos que
-    # necesita, se cae a busqueda_general en vez de fallar o de forzar una
-    # busqueda con datos incompletos (ver docstring de modulo, invariante 2).
-    if accion == Ruta.BUSQUEDA_POR_LEY and not ley:
-        accion = Ruta.BUSQUEDA_GENERAL
-    if accion == Ruta.ARTICULO_ESPECIFICO and not (ley and articulo):
-        accion = Ruta.BUSQUEDA_GENERAL
-    if accion == Ruta.HISTORIAL_LEY and not ley:
-        accion = Ruta.BUSQUEDA_GENERAL
-
-    return accion, ley, articulo
-
-
-def _parse_decision_json(raw: str) -> tuple[str, str | None, str | None] | None:
-    """Parsea el output de DECIDE_SYSTEM_PROMPT como JSON
-    {"accion", "ley", "articulo"} -- se intenta PRIMERO (ver _node_decidir,
-    que pide response_format={"type":"json_object"}). Devuelve None si `raw`
-    no es JSON valido o no tiene forma de objeto -- el llamador cae a
-    _parse_decision (regex sobre texto plano) en ese caso, para el proveedor
-    que ignore response_format y devuelva texto plano de todas formas."""
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    return _normalize_decision_fields(data.get("accion"), data.get("ley"), data.get("articulo"))
-
-
-def _parse_decision(raw: str) -> tuple[str, str | None, str | None] | None:
-    """Parsea el output de DECIDE_SYSTEM_PROMPT en el formato de texto plano
-    ACCION:/LEY:/ARTICULO: -- red de seguridad para cuando el proveedor no
-    respeta response_format (ver _parse_decision_json, que se intenta
-    primero en _node_decidir). Devuelve (accion, ley_o_None, articulo_o_None),
-    o None si no se pudo parsear una accion valida."""
-    accion_match = _ACCION_RE.search(raw)
-    ley_match = _LEY_RE.search(raw)
-    articulo_match = _ARTICULO_RE.search(raw)
-    return _normalize_decision_fields(
-        accion_match.group(1) if accion_match else None,
-        ley_match.group(1) if ley_match else None,
-        articulo_match.group(1) if articulo_match else None,
-    )
-
 
 class AgentState(TypedDict, total=False):
     db: Session
@@ -561,23 +399,6 @@ def _node_generar(state: AgentState) -> dict:
 # ---------------------------------------------------------------------------
 # Nodo "reformular" (Etapa 2, self-reflection)
 # ---------------------------------------------------------------------------
-
-REFORMULATE_SYSTEM_PROMPT = (
-    "Ayudas a mejorar una busqueda de textos legales de Chiapas, Mexico. Un "
-    "primer intento de busqueda con la consulta de abajo NO encontro "
-    "pasajes que respondieran bien la pregunta del usuario. Reformula la "
-    "consulta de busqueda como una version ALTERNATIVA, breve, en espanol, "
-    "usando terminologia legal distinta a la original -- sinonimos "
-    "juridicos, el nombre tecnico de la institucion legal en vez de "
-    "lenguaje coloquial, o una formulacion mas general o mas especifica "
-    "segun convenga. NO inventes el nombre de una ley, codigo o articulo "
-    "que no conozcas con certeza -- si no se te ocurre una reformulacion "
-    "genuinamente distinta que valga la pena probar, responde EXACTAMENTE "
-    "con la misma consulta original sin cambios. Responde SOLO con la "
-    "consulta (original o reformulada), una sola linea, sin explicaciones, "
-    "sin comillas, sin markdown."
-)
-
 
 def _reformulate_search_text(question: str, previous_search_text: str, previous_chunks: list[RetrievedChunk]) -> str:
     """Devuelve una consulta de busqueda alternativa, o `previous_search_text`
