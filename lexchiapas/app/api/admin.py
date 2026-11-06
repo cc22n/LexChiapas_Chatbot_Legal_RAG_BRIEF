@@ -18,7 +18,7 @@ from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document
 from app.repositories.admin_metrics import agent_metrics, golden_dataset_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import AgentMetrics, GoldenDatasetMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.schemas.admin_metrics import AgentMetrics, EvaluationRunQueued, GoldenDatasetMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -136,10 +136,10 @@ def metrics_agent(db: Session = Depends(get_db)) -> dict:
     return agent_metrics(db)
 
 
-@router.post("/evaluation/run", dependencies=[Depends(require_admin)])
+@router.post("/evaluation/run", response_model=EvaluationRunQueued, dependencies=[Depends(require_admin)])
 def trigger_golden_dataset_run() -> dict:
-    """Encola la corrida completa del golden dataset real (24 preguntas, ver
-    app.evaluation.golden_dataset, ~35 minutos y llamadas reales de API) via
+    """Encola la corrida completa del golden dataset real (38 preguntas, ver
+    app.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via
     Celery -- devuelve el task_id de inmediato, NO espera el resultado
     (WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier
     timeout razonable de un endpoint HTTP). El resultado final se consulta

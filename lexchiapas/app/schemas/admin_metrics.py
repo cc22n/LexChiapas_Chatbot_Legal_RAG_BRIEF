@@ -200,3 +200,8 @@ class GoldenDatasetMetrics(BaseModel):
     # null si todavia no corrio ninguna evaluacion (tabla vacia).
     latest: GoldenRunDetail | None
     history: list[GoldenRunSummary]
+
+
+class EvaluationRunQueued(BaseModel):
+    # id de la tarea Celery; el resultado se consulta en /admin/metrics/golden_dataset.
+    task_id: str

@@ -7,7 +7,7 @@ from app.database import Base
 
 
 class GoldenDatasetRun(Base):
-    """Una corrida completa del golden dataset real (24 preguntas, ver
+    """Una corrida completa del golden dataset real (ver
     app.evaluation.golden_dataset) contra app.rag.rag_pipeline.answer_question
     (WEB_FRONTEND_PLAN.md seccion 3.3). Disparada manualmente via
     POST /admin/evaluation/run (app.workers.evaluation_tasks.

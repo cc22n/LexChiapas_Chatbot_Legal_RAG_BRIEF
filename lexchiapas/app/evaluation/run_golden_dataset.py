@@ -29,7 +29,7 @@ RESPUESTA_SNIPPET_MAX_CHARS = 200
 
 
 def run_evaluation(db: Session) -> dict:
-    """Corre las 24 preguntas del golden dataset real, persiste una fila de
+    """Corre las preguntas del golden dataset real, persiste una fila de
     GoldenDatasetRun + una GoldenDatasetRunCase por pregunta, y devuelve un
     resumen (total, passed, xfailed_known, failed, duration_ms) + detalle.
 

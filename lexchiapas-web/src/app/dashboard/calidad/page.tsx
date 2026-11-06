@@ -152,7 +152,7 @@ export default async function CalidadPage() {
         subtitle="Corrida real mas reciente contra las 24 preguntas (app/evaluation/golden_dataset.py) -- dato en vivo, GET /admin/metrics/golden_dataset"
       >
         {goldenDataset.latest === null ? (
-          <EmptyState message="Todavia no corrio ninguna evaluacion real. Disparar con POST /admin/evaluation/run (Celery, ~35min, llamadas reales de API)." />
+          <EmptyState message="Todavia no corrio ninguna evaluacion real. Disparar con POST /admin/evaluation/run (Celery, +30 min, llamadas reales de API)." />
         ) : (
           (() => {
             const latest = goldenDataset.latest;

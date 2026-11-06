@@ -143,3 +143,18 @@ def test_golden_schema_accepts_partial_run_with_null_columns():
                     "xfailed_known": None, "failed": None, "duration_ms": None, "cases": []},
          "history": []}
     )
+
+
+def test_evaluation_run_queues_task_and_returns_task_id(client, monkeypatch):
+    from app.api import admin
+
+    class _FakeTask:
+        id = "task-123"
+
+    monkeypatch.setattr(admin.run_golden_dataset_task, "delay", lambda: _FakeTask())
+    res = client.post("/admin/evaluation/run")
+    assert res.status_code == 200
+    assert res.json() == {"task_id": "task-123"}
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/evaluation/run"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/EvaluationRunQueued")
