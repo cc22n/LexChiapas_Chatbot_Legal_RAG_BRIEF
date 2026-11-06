@@ -128,12 +128,10 @@ export interface GuardrailsMetrics {
 }
 
 export interface AgentMetrics {
-  route_distribution: { route: string; count: number }[];
-  // El backend a veces lo serializa como string numerico (AVG() de
-  // Postgres via SQL crudo, mismo patron que latency.avg_ms en
-  // PerformanceMetrics) -- verificado con curl real: "1.00000000000000000000".
-  // Usar Number(...) antes de .toFixed(), NO Math.round() (ese si coacciona
-  // solo) ni asumir que ya es number pese al tipo declarado aqui.
+  // route es null en mensajes con agent_trace sin ruta registrada.
+  route_distribution: { route: string | null; count: number }[];
+  // El esquema AgentMetrics (backend) lo declara float; el Number(...) previo a
+  // .toFixed() de la pagina queda como defensa.
   avg_intentos: number | null;
   self_reflection_trigger_rate: { triggered: number; total: number };
 }

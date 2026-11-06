@@ -149,3 +149,20 @@ class GuardrailsMetrics(BaseModel):
     out_of_scope_per_day: list[DayCount]
     total_out_of_scope: int
     jailbreak_attempts: int
+
+
+class RouteCount(BaseModel):
+    # null: mensajes con agent_trace sin ruta registrada.
+    route: str | None
+    count: int
+
+
+class SelfReflectionRate(BaseModel):
+    triggered: int
+    total: int
+
+
+class AgentMetrics(BaseModel):
+    route_distribution: list[RouteCount]
+    avg_intentos: float | None
+    self_reflection_trigger_rate: SelfReflectionRate

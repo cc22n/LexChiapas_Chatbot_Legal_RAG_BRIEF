@@ -1,4 +1,4 @@
-"""/admin/metrics/usage, /quality, /performance y /guardrails contra Postgres real: la respuesta cumple el esquema
+"""/admin/metrics/usage, /quality, /performance, /guardrails y /agent contra Postgres real: la respuesta cumple el esquema
 UsageMetrics y OpenAPI lo describe. Se omite si no hay base de datos."""
 
 import pytest
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from app.api.admin_auth import require_admin
 from app.database import SessionLocal
 from app.main import app
-from app.repositories.admin_metrics import guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import agent_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import AgentMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 
 
 @pytest.fixture()
@@ -104,3 +104,18 @@ def test_guardrails_endpoint_and_openapi(db, client):
     schema = client.get("/openapi.json").json()
     ref = schema["paths"]["/admin/metrics/guardrails"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref["$ref"].endswith("/GuardrailsMetrics")
+
+
+def test_agent_repository_matches_schema(db):
+    AgentMetrics.model_validate(agent_metrics(db))
+
+
+def test_agent_endpoint_and_openapi(db, client):
+    res = client.get("/admin/metrics/agent")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == set(AgentMetrics.model_fields)
+    assert body["avg_intentos"] is None or isinstance(body["avg_intentos"], float)
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/metrics/agent"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/AgentMetrics")

@@ -428,3 +428,51 @@ def guardrails_metrics(db: Session) -> dict:
         "total_out_of_scope": total_out_of_scope,
         "jailbreak_attempts": jailbreak_attempts,
     }
+
+
+def agent_metrics(db: Session) -> dict:
+    """Metricas de la ruta agentica (app.rag.agent_pipeline.
+    answer_question_agentic) -- solo considera mensajes que de verdad
+    pasaron por ahi (agent_trace IS NOT NULL, ver Message.agent_trace).
+    Si ai_config.json "agentic_rag.enabled" nunca estuvo en true, esto
+    viene vacio/en 0 -- no es un error, es honesto (WEB_FRONTEND_PLAN.md
+    Fase F)."""
+    route_distribution = db.execute(
+        text(
+            """
+            SELECT agent_trace->>'route' AS route, count(*) AS count
+            FROM messages
+            WHERE role = 'assistant' AND agent_trace IS NOT NULL
+            GROUP BY route
+            ORDER BY count DESC
+            """
+        )
+    ).mappings().all()
+
+    avg_intentos = db.execute(
+        text(
+            """
+            SELECT avg((agent_trace->>'intentos')::int) AS avg_intentos
+            FROM messages
+            WHERE role = 'assistant' AND agent_trace IS NOT NULL
+            """
+        )
+    ).scalar_one()
+
+    self_reflection_trigger_rate = db.execute(
+        text(
+            """
+            SELECT
+              count(*) FILTER (WHERE (agent_trace->>'self_reflection_triggered')::boolean = true) AS triggered,
+              count(*) AS total
+            FROM messages
+            WHERE role = 'assistant' AND agent_trace IS NOT NULL
+            """
+        )
+    ).mappings().one()
+
+    return {
+        "route_distribution": [dict(r) for r in route_distribution],
+        "avg_intentos": avg_intentos,
+        "self_reflection_trigger_rate": dict(self_reflection_trigger_rate),
+    }

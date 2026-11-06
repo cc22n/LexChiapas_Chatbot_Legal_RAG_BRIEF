@@ -17,8 +17,8 @@ from app.config import get_settings, reload_ai_config
 from app.database import get_db
 from app.llm.router import get_primary_model
 from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
-from app.repositories.admin_metrics import guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import agent_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import AgentMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -131,53 +131,9 @@ def metrics_guardrails(db: Session = Depends(get_db)) -> dict:
     return guardrails_metrics(db)
 
 
-@router.get("/metrics/agent", dependencies=[Depends(require_admin)])
+@router.get("/metrics/agent", response_model=AgentMetrics, dependencies=[Depends(require_admin)])
 def metrics_agent(db: Session = Depends(get_db)) -> dict:
-    """Metricas de la ruta agentica (app.rag.agent_pipeline.
-    answer_question_agentic) -- solo considera mensajes que de verdad
-    pasaron por ahi (agent_trace IS NOT NULL, ver Message.agent_trace).
-    Si ai_config.json "agentic_rag.enabled" nunca estuvo en true, esto
-    viene vacio/en 0 -- no es un error, es honesto (WEB_FRONTEND_PLAN.md
-    Fase F)."""
-    route_distribution = db.execute(
-        text(
-            """
-            SELECT agent_trace->>'route' AS route, count(*) AS count
-            FROM messages
-            WHERE role = 'assistant' AND agent_trace IS NOT NULL
-            GROUP BY route
-            ORDER BY count DESC
-            """
-        )
-    ).mappings().all()
-
-    avg_intentos = db.execute(
-        text(
-            """
-            SELECT avg((agent_trace->>'intentos')::int) AS avg_intentos
-            FROM messages
-            WHERE role = 'assistant' AND agent_trace IS NOT NULL
-            """
-        )
-    ).scalar_one()
-
-    self_reflection_trigger_rate = db.execute(
-        text(
-            """
-            SELECT
-              count(*) FILTER (WHERE (agent_trace->>'self_reflection_triggered')::boolean = true) AS triggered,
-              count(*) AS total
-            FROM messages
-            WHERE role = 'assistant' AND agent_trace IS NOT NULL
-            """
-        )
-    ).mappings().one()
-
-    return {
-        "route_distribution": [dict(r) for r in route_distribution],
-        "avg_intentos": avg_intentos,
-        "self_reflection_trigger_rate": dict(self_reflection_trigger_rate),
-    }
+    return agent_metrics(db)
 
 
 @router.post("/evaluation/run", dependencies=[Depends(require_admin)])

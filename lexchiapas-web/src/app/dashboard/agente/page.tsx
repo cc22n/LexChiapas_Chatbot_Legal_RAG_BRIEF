@@ -55,10 +55,10 @@ export default async function AgentePage() {
           { key: "route", label: "Ruta" },
           { key: "count", label: "Cantidad" },
         ]}
-        tableRows={metrics.route_distribution.map((r) => ({ route: r.route, count: r.count }))}
+        tableRows={metrics.route_distribution.map((r) => ({ route: r.route ?? "(sin ruta)", count: r.count }))}
       >
         <BarChartHorizontal
-          data={metrics.route_distribution.map((r) => ({ label: r.route, value: r.count }))}
+          data={metrics.route_distribution.map((r) => ({ label: r.route ?? "(sin ruta)", value: r.count }))}
           colorVar="--series-3"
           emptyMessage="Todavia no hay preguntas procesadas por el agente"
         />
