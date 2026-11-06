@@ -1,0 +1,2631 @@
+{
+  "components": {
+    "schemas": {
+      "AdminLoginRequest": {
+        "properties": {
+          "admin_api_key": {
+            "title": "Admin Api Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "admin_api_key"
+        ],
+        "title": "AdminLoginRequest",
+        "type": "object"
+      },
+      "AgentMetrics": {
+        "properties": {
+          "avg_intentos": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Intentos"
+          },
+          "route_distribution": {
+            "items": {
+              "$ref": "#/components/schemas/RouteCount"
+            },
+            "title": "Route Distribution",
+            "type": "array"
+          },
+          "self_reflection_trigger_rate": {
+            "$ref": "#/components/schemas/SelfReflectionRate"
+          }
+        },
+        "required": [
+          "route_distribution",
+          "avg_intentos",
+          "self_reflection_trigger_rate"
+        ],
+        "title": "AgentMetrics",
+        "type": "object"
+      },
+      "AgentTrace": {
+        "description": "Traza de decisiones del pipeline agentico (app.rag.agent_pipeline) --\nsolo tiene sentido cuando la ruta fue agentica, ver comentario en\nChatResponse.agent_trace abajo.",
+        "properties": {
+          "articulo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Articulo"
+          },
+          "intentos": {
+            "title": "Intentos",
+            "type": "integer"
+          },
+          "law_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Law Name"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "self_reflection_triggered": {
+            "title": "Self Reflection Triggered",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "route",
+          "intentos",
+          "self_reflection_triggered"
+        ],
+        "title": "AgentTrace",
+        "type": "object"
+      },
+      "ChatError": {
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "conversation_id",
+          "error_message",
+          "created_at"
+        ],
+        "title": "ChatError",
+        "type": "object"
+      },
+      "CitedArticle": {
+        "properties": {
+          "articulo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Articulo"
+          },
+          "ley": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ley"
+          },
+          "mentions": {
+            "title": "Mentions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ley",
+          "articulo",
+          "mentions"
+        ],
+        "title": "CitedArticle",
+        "type": "object"
+      },
+      "DayCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "count"
+        ],
+        "title": "DayCount",
+        "type": "object"
+      },
+      "DocumentCreate": {
+        "properties": {
+          "area_derecho": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Derecho"
+          },
+          "fecha_publicacion": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Publicacion"
+          },
+          "fecha_ultima_reforma": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Ultima Reforma"
+          },
+          "nombre": {
+            "title": "Nombre",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nombre",
+          "tipo"
+        ],
+        "title": "DocumentCreate",
+        "type": "object"
+      },
+      "DocumentOut": {
+        "properties": {
+          "area_derecho": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Derecho"
+          },
+          "fecha_publicacion": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Publicacion"
+          },
+          "fecha_ultima_reforma": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fecha Ultima Reforma"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ingested_at": {
+            "format": "date-time",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "nombre": {
+            "title": "Nombre",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nombre",
+          "tipo",
+          "fecha_publicacion",
+          "fecha_ultima_reforma",
+          "source_url",
+          "area_derecho",
+          "is_active",
+          "ingested_at"
+        ],
+        "title": "DocumentOut",
+        "type": "object"
+      },
+      "EvaluationRunQueued": {
+        "properties": {
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "EvaluationRunQueued",
+        "type": "object"
+      },
+      "FeedbackCreate": {
+        "properties": {
+          "message_id": {
+            "title": "Message Id",
+            "type": "integer"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "user_comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Comment"
+          }
+        },
+        "required": [
+          "message_id",
+          "session_id",
+          "rating"
+        ],
+        "title": "FeedbackCreate",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "integer"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "string"
+          },
+          "user_comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Comment"
+          }
+        },
+        "required": [
+          "id",
+          "message_id",
+          "rating"
+        ],
+        "title": "FeedbackOut",
+        "type": "object"
+      },
+      "GoldenCase": {
+        "properties": {
+          "actual_grounded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Grounded"
+          },
+          "articulo_esperado": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Articulo Esperado"
+          },
+          "expects_grounded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expects Grounded"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "posicion_encontrada": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posicion Encontrada"
+          },
+          "pregunta": {
+            "title": "Pregunta",
+            "type": "string"
+          },
+          "respuesta_snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Respuesta Snippet"
+          }
+        },
+        "required": [
+          "id",
+          "pregunta",
+          "passed",
+          "expects_grounded",
+          "actual_grounded",
+          "articulo_esperado",
+          "posicion_encontrada",
+          "respuesta_snippet"
+        ],
+        "title": "GoldenCase",
+        "type": "object"
+      },
+      "GoldenDatasetMetrics": {
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/GoldenRunSummary"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoldenRunDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "latest",
+          "history"
+        ],
+        "title": "GoldenDatasetMetrics",
+        "type": "object"
+      },
+      "GoldenRunDetail": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/GoldenCase"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "xfailed_known": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xfailed Known"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "completed_at",
+          "total",
+          "passed",
+          "xfailed_known",
+          "failed",
+          "duration_ms",
+          "cases"
+        ],
+        "title": "GoldenRunDetail",
+        "type": "object"
+      },
+      "GoldenRunSummary": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "xfailed_known": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xfailed Known"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "completed_at",
+          "total",
+          "passed",
+          "xfailed_known",
+          "failed",
+          "duration_ms"
+        ],
+        "title": "GoldenRunSummary",
+        "type": "object"
+      },
+      "GuardrailsMetrics": {
+        "properties": {
+          "jailbreak_attempts": {
+            "title": "Jailbreak Attempts",
+            "type": "integer"
+          },
+          "out_of_scope_per_day": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "title": "Out Of Scope Per Day",
+            "type": "array"
+          },
+          "total_out_of_scope": {
+            "title": "Total Out Of Scope",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "out_of_scope_per_day",
+          "total_out_of_scope",
+          "jailbreak_attempts"
+        ],
+        "title": "GuardrailsMetrics",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IngestionError": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "integer"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "status",
+          "error_message",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "IngestionError",
+        "type": "object"
+      },
+      "Latency": {
+        "properties": {
+          "avg_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Ms"
+          },
+          "p95_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Ms"
+          }
+        },
+        "required": [
+          "avg_ms",
+          "p95_ms"
+        ],
+        "title": "Latency",
+        "type": "object"
+      },
+      "LatencyBreakdown": {
+        "properties": {
+          "avg_generation_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Generation Ms"
+          },
+          "avg_search_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Search Ms"
+          },
+          "p95_generation_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Generation Ms"
+          },
+          "p95_search_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Search Ms"
+          }
+        },
+        "required": [
+          "avg_search_ms",
+          "p95_search_ms",
+          "avg_generation_ms",
+          "p95_generation_ms"
+        ],
+        "title": "LatencyBreakdown",
+        "type": "object"
+      },
+      "LawMentions": {
+        "properties": {
+          "ley": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ley"
+          },
+          "mentions": {
+            "title": "Mentions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ley",
+          "mentions"
+        ],
+        "title": "LawMentions",
+        "type": "object"
+      },
+      "ModelCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "llm_model": {
+            "title": "Llm Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_model",
+          "count"
+        ],
+        "title": "ModelCount",
+        "type": "object"
+      },
+      "NotFoundRate": {
+        "properties": {
+          "not_found": {
+            "title": "Not Found",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "not_found",
+          "total"
+        ],
+        "title": "NotFoundRate",
+        "type": "object"
+      },
+      "PerformanceMetrics": {
+        "properties": {
+          "latency": {
+            "$ref": "#/components/schemas/Latency"
+          },
+          "latency_breakdown": {
+            "$ref": "#/components/schemas/LatencyBreakdown"
+          },
+          "primary_vs_fallback": {
+            "$ref": "#/components/schemas/PrimaryVsFallback"
+          },
+          "recent_chat_errors": {
+            "items": {
+              "$ref": "#/components/schemas/ChatError"
+            },
+            "title": "Recent Chat Errors",
+            "type": "array"
+          },
+          "recent_ingestion_errors": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionError"
+            },
+            "title": "Recent Ingestion Errors",
+            "type": "array"
+          },
+          "system_error_rate": {
+            "$ref": "#/components/schemas/SystemErrorRate"
+          },
+          "tokens_per_day": {
+            "items": {
+              "$ref": "#/components/schemas/TokensPerDay"
+            },
+            "title": "Tokens Per Day",
+            "type": "array"
+          },
+          "usage_by_model": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCount"
+            },
+            "title": "Usage By Model",
+            "type": "array"
+          }
+        },
+        "required": [
+          "latency",
+          "latency_breakdown",
+          "usage_by_model",
+          "tokens_per_day",
+          "recent_ingestion_errors",
+          "recent_chat_errors",
+          "system_error_rate",
+          "primary_vs_fallback"
+        ],
+        "title": "PerformanceMetrics",
+        "type": "object"
+      },
+      "PlatformCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "count"
+        ],
+        "title": "PlatformCount",
+        "type": "object"
+      },
+      "PlatformUsers": {
+        "properties": {
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "unique_users": {
+            "title": "Unique Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "platform",
+          "unique_users"
+        ],
+        "title": "PlatformUsers",
+        "type": "object"
+      },
+      "PrimaryVsFallback": {
+        "properties": {
+          "fallback_count": {
+            "title": "Fallback Count",
+            "type": "integer"
+          },
+          "primary_count": {
+            "title": "Primary Count",
+            "type": "integer"
+          },
+          "primary_model": {
+            "title": "Primary Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary_model",
+          "primary_count",
+          "fallback_count"
+        ],
+        "title": "PrimaryVsFallback",
+        "type": "object"
+      },
+      "QualityMetrics": {
+        "properties": {
+          "avg_similarity_grounded": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Similarity Grounded"
+          },
+          "feedback_ratio": {
+            "items": {
+              "$ref": "#/components/schemas/RatingCount"
+            },
+            "title": "Feedback Ratio",
+            "type": "array"
+          },
+          "feedback_ratio_telegram": {
+            "items": {
+              "$ref": "#/components/schemas/RatingCount"
+            },
+            "title": "Feedback Ratio Telegram",
+            "type": "array"
+          },
+          "grounded_by_rewrite": {
+            "items": {
+              "$ref": "#/components/schemas/RewriteGrounding"
+            },
+            "title": "Grounded By Rewrite",
+            "type": "array"
+          },
+          "not_found_rate": {
+            "$ref": "#/components/schemas/NotFoundRate"
+          },
+          "similarity_histogram": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarityBucket"
+            },
+            "title": "Similarity Histogram",
+            "type": "array"
+          },
+          "top_cited_articles": {
+            "items": {
+              "$ref": "#/components/schemas/CitedArticle"
+            },
+            "title": "Top Cited Articles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "not_found_rate",
+          "feedback_ratio",
+          "feedback_ratio_telegram",
+          "top_cited_articles",
+          "avg_similarity_grounded",
+          "similarity_histogram",
+          "grounded_by_rewrite"
+        ],
+        "title": "QualityMetrics",
+        "type": "object"
+      },
+      "QuestionCount": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content",
+          "count"
+        ],
+        "title": "QuestionCount",
+        "type": "object"
+      },
+      "RatingCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rating",
+          "count"
+        ],
+        "title": "RatingCount",
+        "type": "object"
+      },
+      "RetrievedChunk": {
+        "properties": {
+          "articulo_numero": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Articulo Numero"
+          },
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "integer"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "derogado": {
+            "default": false,
+            "title": "Derogado",
+            "type": "boolean"
+          },
+          "document_nombre": {
+            "title": "Document Nombre",
+            "type": "string"
+          },
+          "historial": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Historial",
+            "type": "array"
+          },
+          "passed_threshold": {
+            "default": false,
+            "title": "Passed Threshold",
+            "type": "boolean"
+          },
+          "similarity": {
+            "title": "Similarity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_nombre",
+          "similarity",
+          "content"
+        ],
+        "title": "RetrievedChunk",
+        "type": "object"
+      },
+      "RewriteGrounding": {
+        "properties": {
+          "grounded": {
+            "title": "Grounded",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "was_rewritten": {
+            "title": "Was Rewritten",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "was_rewritten",
+          "grounded",
+          "total"
+        ],
+        "title": "RewriteGrounding",
+        "type": "object"
+      },
+      "RouteCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "required": [
+          "route",
+          "count"
+        ],
+        "title": "RouteCount",
+        "type": "object"
+      },
+      "SelfReflectionRate": {
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "triggered": {
+            "title": "Triggered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "triggered",
+          "total"
+        ],
+        "title": "SelfReflectionRate",
+        "type": "object"
+      },
+      "SimilarityBucket": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "count"
+        ],
+        "title": "SimilarityBucket",
+        "type": "object"
+      },
+      "SystemErrorRate": {
+        "properties": {
+          "system_errors": {
+            "title": "System Errors",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "system_errors",
+          "total"
+        ],
+        "title": "SystemErrorRate",
+        "type": "object"
+      },
+      "TokensPerDay": {
+        "properties": {
+          "aux_completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aux Completion Tokens"
+          },
+          "aux_prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aux Prompt Tokens"
+          },
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "required": [
+          "day",
+          "prompt_tokens",
+          "completion_tokens",
+          "aux_prompt_tokens",
+          "aux_completion_tokens",
+          "total_tokens"
+        ],
+        "title": "TokensPerDay",
+        "type": "object"
+      },
+      "UsageMetrics": {
+        "properties": {
+          "conversations_by_platform": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformCount"
+            },
+            "title": "Conversations By Platform",
+            "type": "array"
+          },
+          "questions_per_day": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "title": "Questions Per Day",
+            "type": "array"
+          },
+          "questions_per_day_telegram": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "title": "Questions Per Day Telegram",
+            "type": "array"
+          },
+          "top_laws": {
+            "items": {
+              "$ref": "#/components/schemas/LawMentions"
+            },
+            "title": "Top Laws",
+            "type": "array"
+          },
+          "top_questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionCount"
+            },
+            "title": "Top Questions",
+            "type": "array"
+          },
+          "top_questions_telegram": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionCount"
+            },
+            "title": "Top Questions Telegram",
+            "type": "array"
+          },
+          "unique_users_by_platform": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformUsers"
+            },
+            "title": "Unique Users By Platform",
+            "type": "array"
+          }
+        },
+        "required": [
+          "questions_per_day",
+          "unique_users_by_platform",
+          "top_laws",
+          "top_questions",
+          "conversations_by_platform",
+          "questions_per_day_telegram",
+          "top_questions_telegram"
+        ],
+        "title": "UsageMetrics",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WebChatRequest": {
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "title": "Message",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "technical": {
+            "default": false,
+            "title": "Technical",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "session_id",
+          "message"
+        ],
+        "title": "WebChatRequest",
+        "type": "object"
+      },
+      "WebChatResponse": {
+        "properties": {
+          "agent_trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "aux_completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aux Completion Tokens"
+          },
+          "aux_prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aux Prompt Tokens"
+          },
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
+          "generation_time_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Time Ms"
+          },
+          "grounded": {
+            "title": "Grounded",
+            "type": "boolean"
+          },
+          "grounding_classifier_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grounding Classifier Model"
+          },
+          "llm_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Model"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "integer"
+          },
+          "out_of_scope": {
+            "default": false,
+            "title": "Out Of Scope",
+            "type": "boolean"
+          },
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Tokens"
+          },
+          "retrieved_chunks": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedChunk"
+            },
+            "title": "Retrieved Chunks",
+            "type": "array"
+          },
+          "search_time_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Time Ms"
+          },
+          "system_error": {
+            "default": false,
+            "title": "System Error",
+            "type": "boolean"
+          },
+          "was_rewritten": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Was Rewritten"
+          }
+        },
+        "required": [
+          "answer",
+          "retrieved_chunks",
+          "grounded",
+          "message_id"
+        ],
+        "title": "WebChatResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Chatbot legal RAG sobre leyes de Chiapas",
+    "title": "LexChiapas",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/admin/config/reload": {
+      "post": {
+        "description": "Recarga ai_config.json sin reiniciar el proceso (Fase 9.8/C2). Util\ntras editar el archivo en un incidente -- ej. cambiar embeddings.model\ncuando el actual muere (410), sin necesidad de un restart que corte el\nservicio. get_ai_config() esta bajo @lru_cache; esto solo limpia ese\ncache.",
+        "operationId": "admin_reload_config_admin_config_reload_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Reload Config Admin Config Reload Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Reload Config",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/documents": {
+      "get": {
+        "operationId": "list_documents_admin_documents_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentOut"
+                  },
+                  "title": "Response List Documents Admin Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Documents",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_document_admin_documents_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Document",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/documents/{document_id}": {
+      "delete": {
+        "operationId": "deactivate_document_admin_documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Deactivate Document Admin Documents  Document Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deactivate Document",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evaluation/run": {
+      "post": {
+        "description": "Encola la corrida completa del golden dataset real (38 preguntas, ver\napp.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via\nCelery -- devuelve el task_id de inmediato, NO espera el resultado\n(WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier\ntimeout razonable de un endpoint HTTP). El resultado final se consulta\ndespues con GET /admin/metrics/golden_dataset.",
+        "operationId": "trigger_golden_dataset_run_admin_evaluation_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRunQueued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Golden Dataset Run",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/login": {
+      "post": {
+        "operationId": "admin_login_admin_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Login Admin Login Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Login",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/logout": {
+      "post": {
+        "operationId": "admin_logout_admin_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Logout Admin Logout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Logout",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/agent": {
+      "get": {
+        "operationId": "metrics_agent_admin_metrics_agent_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Agent",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/golden_dataset": {
+      "get": {
+        "description": "Corrida mas reciente del golden dataset (con detalle por caso) y las\nultimas 10 para la tendencia. Sin corridas: {\"latest\": None, \"history\": []}.",
+        "operationId": "metrics_golden_dataset_admin_metrics_golden_dataset_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoldenDatasetMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Golden Dataset",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/guardrails": {
+      "get": {
+        "operationId": "metrics_guardrails_admin_metrics_guardrails_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailsMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Guardrails",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/performance": {
+      "get": {
+        "operationId": "metrics_performance_admin_metrics_performance_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Performance",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/quality": {
+      "get": {
+        "operationId": "metrics_quality_admin_metrics_quality_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Quality",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/metrics/usage": {
+      "get": {
+        "operationId": "metrics_usage_admin_metrics_usage_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metrics Usage",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/chat/web": {
+      "post": {
+        "operationId": "chat_web_api_chat_web_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat Web",
+        "tags": [
+          "chat-web"
+        ]
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "operationId": "create_feedback_api_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/laws": {
+      "get": {
+        "operationId": "list_laws_api_laws_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Laws Api Laws Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Laws",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/legal-relations": {
+      "get": {
+        "description": "Explorador hub-and-spoke: para la ley pedida, devuelve la \"otra ley\"\ninvolucrada en cada relacion real (legal_relations, via query_graph),\nsin importar de que lado (from/to) aparece la ley consultada en la fila\noriginal -- ver instrucciones de la tarea para el razonamiento completo\nde la direccion semantica.\n\nSi `law` no matchea ningun documento activo, devuelve igual\n{\"law\": law, \"relations\": []} con status 200 (no 404) -- mismo\ncomportamiento honesto \"no hay datos\" que query_graph ya documenta,\nno una falla.",
+        "operationId": "legal_relations_api_legal_relations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "law",
+            "required": true,
+            "schema": {
+              "title": "Law",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Legal Relations Api Legal Relations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legal Relations",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Liveness: el proceso esta vivo y puede responder HTTP. NO verifica\ndependencias externas a proposito (tiene que ser rapido e incondicional\n-- ver /health/ready para eso).",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "description": "Readiness: ademas de estar vivo, puede de verdad atender requests\nreales -- confirma que Postgres responde Y que el modelo de embeddings\nesta vivo.\n\nBUG REAL corregido (auditoria de salud del backend, 2026-08-06, hallazgo\nM3): antes solo existia /health, que devolvia 200 incondicional aunque\nla DB estuviera caida o el pool agotado -- si el hosting usa un\nhealthcheck para decidir reinicios/routing, no detectaria el problema\nreal mientras TODOS los endpoints reales (chat, webhook, admin) ya\nestarian fallando con 500. Solo verifica Postgres (no Redis: ya es\nbest-effort/opcional en todo el resto del codigo, un Redis caido no\ndeberia tumbar el readiness).\n\nFase 9.8/A6: se agrega el canario de embeddings. Sin esto, /health/ready\ndevolvia 200 aunque el modelo de embeddings estuviera muerto (410, el\nincidente real de la Fase 9.7) y TODO turno de RAG estuviera fallando --\nexactamente el modo de fallo que readiness debe reflejar. Si no se puede\nembeber, la instancia NO esta lista para su funcion principal, asi que se\nresponde 503. Trade-off aceptado y honesto: si el modelo esta muerto a\nnivel plataforma, todas las instancias quedan 'unhealthy' en el\norquestador (que es la senal correcta -- el servicio ESTA caido hasta que\nun humano cambie embeddings.model); liveness /health sigue en 200 asi que\nno hay crash-loop. El canario esta cacheado (TTL) para no encarecer los\nprobes ni flapear ante un blip transitorio (embed_text ya reintenta 429/5xx).",
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Ready Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/webhook/telegram": {
+      "post": {
+        "operationId": "telegram_webhook_webhook_telegram_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-telegram-bot-api-secret-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Telegram-Bot-Api-Secret-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Telegram Webhook Webhook Telegram Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telegram Webhook",
+        "tags": [
+          "telegram"
+        ]
+      }
+    },
+    "/webhook/whatsapp": {
+      "post": {
+        "operationId": "whatsapp_webhook_webhook_whatsapp_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Whatsapp Webhook Webhook Whatsapp Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Whatsapp Webhook",
+        "tags": [
+          "whatsapp"
+        ]
+      }
+    }
+  }
+}

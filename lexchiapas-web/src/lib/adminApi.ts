@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { components } from "./api-schema";
+
 // Mismo backend que src/lib/api.ts -- 127.0.0.1, no "localhost" (ver ese
 // archivo para el detalle del bug de IPv6 en esta maquina). Este helper
 // corre solo en el servidor de Next.js (Server Components / Route
@@ -35,139 +37,20 @@ async function fetchAdminJson<T>(path: string, adminApiKey: string): Promise<T> 
   return res.json();
 }
 
-export interface UsageMetrics {
-  questions_per_day: { day: string; count: number }[];
-  unique_users_by_platform: { platform: string; unique_users: number }[];
-  top_laws: { ley: string | null; mentions: number }[];
-  // Agregados por el backend 2026-07-24 (item 4/16 de LexChiapas_Dashboard_Metricas.md).
-  top_questions: { content: string; count: number }[];
-  conversations_by_platform: { platform: string; count: number }[];
-  // Mismas dos series acotadas a Telegram (agregadas al esquema UsageMetrics).
-  questions_per_day_telegram: { day: string; count: number }[];
-  top_questions_telegram: { content: string; count: number }[];
-}
+// Tipos GENERADOS desde el esquema OpenAPI del backend (npm run types:generate).
+// No se escriben a mano: si cambia un esquema en lexchiapas/app/schemas/
+// admin_metrics.py, se regenera src/lib/api-schema.d.ts y `npm run types:check`
+// (o tsc) delata cualquier desajuste.
+type Schemas = components["schemas"];
 
-export interface QualityMetrics {
-  not_found_rate: { not_found: number; total: number };
-  feedback_ratio: { rating: string; count: number }[];
-  // Mismo agrupado acotado a feedback de conversaciones de Telegram.
-  feedback_ratio_telegram: { rating: string; count: number }[];
-  top_cited_articles: { ley: string | null; articulo: string | null; mentions: number }[];
-  // Agregados por el backend 2026-07-24 (item 10/11) -- solo promedia/agrupa
-  // chunks con passed_threshold=true (similitud coseno real, no BM25).
-  // null si todavia no hay ningun mensaje grounded.
-  avg_similarity_grounded: number | null;
-  // Buckets fijos de 0.1 ("0.5-0.6".."0.9-1.0"); buckets sin datos vienen
-  // AUSENTES del array (no en 0) -- el frontend debe tratarlos como 0.
-  similarity_histogram: { range: string; count: number }[];
-  // Solo mensajes que pasaron por la decision de reescritura de la pregunta.
-  grounded_by_rewrite: { was_rewritten: boolean; grounded: number; total: number }[];
-}
-
-export interface PerformanceMetrics {
-  // avg_ms/p95_ms: el esquema PerformanceMetrics (backend) los declara float,
-  // asi que llegan como numero. formatMs (performance/page.tsx) conserva un
-  // Number() defensivo por si un cliente viejo los recibe como string.
-  latency: { avg_ms: number | null; p95_ms: number | null };
-  // Desglose de latencia (item 3.2 de WEB_FRONTEND_PLAN.md Fase C.2) --
-  // solo cubre mensajes que pasaron por el pipeline lineal real (no cache
-  // hit, no pipeline agentico), por eso puede venir null aunque latency
-  // arriba tenga dato.
-  latency_breakdown: {
-    avg_search_ms: number | null;
-    p95_search_ms: number | null;
-    avg_generation_ms: number | null;
-    p95_generation_ms: number | null;
-  };
-  usage_by_model: { llm_model: string; count: number }[];
-  // aux_*: tokens de las llamadas auxiliares (decidir/reformular/grounding/
-  // rewrite); total_tokens suma generacion + auxiliares. Pueden llegar como
-  // string numerico (sum() de Postgres via SQL crudo).
-  tokens_per_day: {
-    day: string;
-    prompt_tokens: number | null;
-    completion_tokens: number | null;
-    aux_prompt_tokens: number | null;
-    aux_completion_tokens: number | null;
-    total_tokens: number | null;
-  }[];
-  recent_ingestion_errors: {
-    id: number;
-    document_id: number;
-    status: string;
-    error_message: string | null;
-    started_at: string | null;
-    completed_at: string | null;
-  }[];
-  // Listado navegable de errores individuales del chat (distinto del
-  // conteo agregado de system_error_rate abajo) -- found_answer IS NULL
-  // identifica un turno donde el pipeline exploto con una excepcion real.
-  recent_chat_errors: {
-    id: number;
-    conversation_id: number;
-    error_message: string | null;
-    created_at: string;
-  }[];
-  // Agregado por el backend 2026-07-24 (item 3) -- found_answer IS NULL
-  // (crash real del pipeline) vs total de mensajes assistant. Distinto de
-  // not_found_rate en QualityMetrics, que es el "no encontre informacion"
-  // legitimo.
-  system_error_rate: { system_errors: number; total: number };
-  // primary_vs_fallback (item 3.1 de WEB_FRONTEND_PLAN.md Fase C.2) --
-  // primary_model viene de ai_config.json fallback_order[0] AHORA, no de
-  // cuando se genero cada respuesta -- si el orden de fallback cambia, las
-  // respuestas viejas se reclasifican solas la proxima vez que se pide este
-  // endpoint.
-  primary_vs_fallback: { primary_model: string; primary_count: number; fallback_count: number };
-}
-
-export interface GuardrailsMetrics {
-  out_of_scope_per_day: { day: string; count: number }[];
-  total_out_of_scope: number;
-  jailbreak_attempts: number | null;
-}
-
-export interface AgentMetrics {
-  // route es null en mensajes con agent_trace sin ruta registrada.
-  route_distribution: { route: string | null; count: number }[];
-  // El esquema AgentMetrics (backend) lo declara float; el Number(...) previo a
-  // .toFixed() de la pagina queda como defensa.
-  avg_intentos: number | null;
-  self_reflection_trigger_rate: { triggered: number; total: number };
-}
-
-// Las columnas de las corridas aceptan NULL (una corrida a medias): el esquema
-// GoldenDatasetMetrics del backend las declara anulables.
-export interface GoldenDatasetCase {
-  id: number;
-  pregunta: string;
-  passed: boolean | null;
-  expects_grounded: boolean | null;
-  actual_grounded: boolean | null;
-  articulo_esperado: string | null;
-  posicion_encontrada: number | null;
-  respuesta_snippet: string | null;
-}
-
-export interface GoldenDatasetRunSummary {
-  id: number;
-  started_at: string | null;
-  completed_at: string | null;
-  total: number | null;
-  passed: number | null;
-  xfailed_known: number | null;
-  failed: number | null;
-  duration_ms: number | null;
-}
-
-export interface GoldenDatasetMetrics {
-  // null si todavia no corrio ninguna evaluacion (tabla vacia) -- distinto
-  // de un run con 0 passed, que si es un resultado real.
-  latest: (GoldenDatasetRunSummary & { cases: GoldenDatasetCase[] }) | null;
-  // Ultimas 10 corridas, mas reciente primero (igual que el resto del
-  // backend), para graficar tendencia.
-  history: GoldenDatasetRunSummary[];
-}
+export type UsageMetrics = Schemas["UsageMetrics"];
+export type QualityMetrics = Schemas["QualityMetrics"];
+export type PerformanceMetrics = Schemas["PerformanceMetrics"];
+export type GuardrailsMetrics = Schemas["GuardrailsMetrics"];
+export type AgentMetrics = Schemas["AgentMetrics"];
+export type GoldenDatasetCase = Schemas["GoldenCase"];
+export type GoldenDatasetRunSummary = Schemas["GoldenRunSummary"];
+export type GoldenDatasetMetrics = Schemas["GoldenDatasetMetrics"];
 
 export interface AdminDocument {
   id: number;
