@@ -16,9 +16,9 @@ from app.api.rate_limit import enforce_rate_limit
 from app.config import get_settings, reload_ai_config
 from app.database import get_db
 from app.llm.router import get_primary_model
-from app.models import Document, GoldenDatasetRun, GoldenDatasetRunCase
-from app.repositories.admin_metrics import agent_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import AgentMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.models import Document
+from app.repositories.admin_metrics import agent_metrics, golden_dataset_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import AgentMetrics, GoldenDatasetMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 from app.schemas.document import DocumentCreate, DocumentOut
 from app.workers.evaluation_tasks import run_golden_dataset_task
 
@@ -148,66 +148,8 @@ def trigger_golden_dataset_run() -> dict:
     return {"task_id": task.id}
 
 
-def _golden_run_summary(run: GoldenDatasetRun) -> dict:
-    return {
-        "id": run.id,
-        "started_at": run.started_at,
-        "completed_at": run.completed_at,
-        "total": run.total,
-        "passed": run.passed,
-        "xfailed_known": run.xfailed_known,
-        "failed": run.failed,
-        "duration_ms": run.duration_ms,
-    }
-
-
-@router.get("/metrics/golden_dataset", dependencies=[Depends(require_admin)])
+@router.get("/metrics/golden_dataset", response_model=GoldenDatasetMetrics, dependencies=[Depends(require_admin)])
 def metrics_golden_dataset(db: Session = Depends(get_db)) -> dict:
-    """Corrida MAS RECIENTE del golden dataset real (con su detalle por
-    caso, ver GoldenDatasetRunCase) + las ultimas 10 corridas para graficar
-    tendencia en el dashboard (WEB_FRONTEND_PLAN.md seccion 3.3, item 5).
-    Reemplaza el snapshot manual estatico (ragAdvancedSnapshot.ts, Fase E)
-    con dato real en vivo.
-
-    Si todavia no corrio ninguna evaluacion (tabla vacia), devuelve una
-    forma explicita {"latest": None, "history": []} en vez de un error --
-    el frontend puede distinguir "sin datos" de una falla real."""
-    latest_run = (
-        db.query(GoldenDatasetRun).order_by(GoldenDatasetRun.started_at.desc()).first()
-    )
-    if latest_run is None:
-        return {"latest": None, "history": []}
-
-    cases = (
-        db.query(GoldenDatasetRunCase)
-        .filter(GoldenDatasetRunCase.run_id == latest_run.id)
-        .order_by(GoldenDatasetRunCase.id)
-        .all()
-    )
-
-    history = (
-        db.query(GoldenDatasetRun)
-        .order_by(GoldenDatasetRun.started_at.desc())
-        .limit(10)
-        .all()
-    )
-
-    latest = _golden_run_summary(latest_run)
-    latest["cases"] = [
-        {
-            "id": c.id,
-            "pregunta": c.pregunta,
-            "passed": c.passed,
-            "expects_grounded": c.expects_grounded,
-            "actual_grounded": c.actual_grounded,
-            "articulo_esperado": c.articulo_esperado,
-            "posicion_encontrada": c.posicion_encontrada,
-            "respuesta_snippet": c.respuesta_snippet,
-        }
-        for c in cases
-    ]
-
-    return {
-        "latest": latest,
-        "history": [_golden_run_summary(r) for r in history],
-    }
+    """Corrida mas reciente del golden dataset (con detalle por caso) y las
+    ultimas 10 para la tendencia. Sin corridas: {"latest": None, "history": []}."""
+    return golden_dataset_metrics(db)

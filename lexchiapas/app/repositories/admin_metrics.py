@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.llm.router import get_primary_model
+from app.models import GoldenDatasetRun, GoldenDatasetRunCase
 from app.rag.guardrails import OUT_OF_SCOPE_MESSAGE
 
 
@@ -475,4 +476,68 @@ def agent_metrics(db: Session) -> dict:
         "route_distribution": [dict(r) for r in route_distribution],
         "avg_intentos": avg_intentos,
         "self_reflection_trigger_rate": dict(self_reflection_trigger_rate),
+    }
+
+
+def _golden_run_summary(run: GoldenDatasetRun) -> dict:
+    return {
+        "id": run.id,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "total": run.total,
+        "passed": run.passed,
+        "xfailed_known": run.xfailed_known,
+        "failed": run.failed,
+        "duration_ms": run.duration_ms,
+    }
+
+
+def golden_dataset_metrics(db: Session) -> dict:
+    """Corrida MAS RECIENTE del golden dataset real (con su detalle por
+    caso, ver GoldenDatasetRunCase) + las ultimas 10 corridas para graficar
+    tendencia en el dashboard (WEB_FRONTEND_PLAN.md seccion 3.3, item 5).
+    Reemplaza el snapshot manual estatico (ragAdvancedSnapshot.ts, Fase E)
+    con dato real en vivo.
+
+    Si todavia no corrio ninguna evaluacion (tabla vacia), devuelve una
+    forma explicita {"latest": None, "history": []} en vez de un error --
+    el frontend puede distinguir "sin datos" de una falla real."""
+    latest_run = (
+        db.query(GoldenDatasetRun).order_by(GoldenDatasetRun.started_at.desc()).first()
+    )
+    if latest_run is None:
+        return {"latest": None, "history": []}
+
+    cases = (
+        db.query(GoldenDatasetRunCase)
+        .filter(GoldenDatasetRunCase.run_id == latest_run.id)
+        .order_by(GoldenDatasetRunCase.id)
+        .all()
+    )
+
+    history = (
+        db.query(GoldenDatasetRun)
+        .order_by(GoldenDatasetRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    latest = _golden_run_summary(latest_run)
+    latest["cases"] = [
+        {
+            "id": c.id,
+            "pregunta": c.pregunta,
+            "passed": c.passed,
+            "expects_grounded": c.expects_grounded,
+            "actual_grounded": c.actual_grounded,
+            "articulo_esperado": c.articulo_esperado,
+            "posicion_encontrada": c.posicion_encontrada,
+            "respuesta_snippet": c.respuesta_snippet,
+        }
+        for c in cases
+    ]
+
+    return {
+        "latest": latest,
+        "history": [_golden_run_summary(r) for r in history],
     }

@@ -136,12 +136,14 @@ export interface AgentMetrics {
   self_reflection_trigger_rate: { triggered: number; total: number };
 }
 
+// Las columnas de las corridas aceptan NULL (una corrida a medias): el esquema
+// GoldenDatasetMetrics del backend las declara anulables.
 export interface GoldenDatasetCase {
   id: number;
   pregunta: string;
-  passed: boolean;
-  expects_grounded: boolean;
-  actual_grounded: boolean;
+  passed: boolean | null;
+  expects_grounded: boolean | null;
+  actual_grounded: boolean | null;
   articulo_esperado: string | null;
   posicion_encontrada: number | null;
   respuesta_snippet: string | null;
@@ -149,12 +151,12 @@ export interface GoldenDatasetCase {
 
 export interface GoldenDatasetRunSummary {
   id: number;
-  started_at: string;
+  started_at: string | null;
   completed_at: string | null;
-  total: number;
-  passed: number;
-  xfailed_known: number;
-  failed: number;
+  total: number | null;
+  passed: number | null;
+  xfailed_known: number | null;
+  failed: number | null;
   duration_ms: number | null;
 }
 

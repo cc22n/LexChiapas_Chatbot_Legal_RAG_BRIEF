@@ -1,4 +1,4 @@
-"""/admin/metrics/usage, /quality, /performance, /guardrails y /agent contra Postgres real: la respuesta cumple el esquema
+"""/admin/metrics/usage, /quality, /performance, /guardrails, /agent y /golden_dataset contra Postgres real: la respuesta cumple el esquema
 UsageMetrics y OpenAPI lo describe. Se omite si no hay base de datos."""
 
 import pytest
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from app.api.admin_auth import require_admin
 from app.database import SessionLocal
 from app.main import app
-from app.repositories.admin_metrics import agent_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
-from app.schemas.admin_metrics import AgentMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
+from app.repositories.admin_metrics import agent_metrics, golden_dataset_metrics, guardrails_metrics, performance_metrics, quality_metrics, usage_metrics
+from app.schemas.admin_metrics import AgentMetrics, GoldenDatasetMetrics, GuardrailsMetrics, PerformanceMetrics, QualityMetrics, UsageMetrics
 
 
 @pytest.fixture()
@@ -119,3 +119,27 @@ def test_agent_endpoint_and_openapi(db, client):
     schema = client.get("/openapi.json").json()
     ref = schema["paths"]["/admin/metrics/agent"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     assert ref["$ref"].endswith("/AgentMetrics")
+
+
+def test_golden_repository_matches_schema(db):
+    GoldenDatasetMetrics.model_validate(golden_dataset_metrics(db))
+
+
+def test_golden_endpoint_and_openapi(db, client):
+    res = client.get("/admin/metrics/golden_dataset")
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body) == {"latest", "history"}
+    if body["latest"] is not None:
+        assert isinstance(body["latest"]["cases"], list)
+    schema = client.get("/openapi.json").json()
+    ref = schema["paths"]["/admin/metrics/golden_dataset"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ref["$ref"].endswith("/GoldenDatasetMetrics")
+
+
+def test_golden_schema_accepts_partial_run_with_null_columns():
+    GoldenDatasetMetrics.model_validate(
+        {"latest": {"id": 1, "started_at": None, "completed_at": None, "total": None, "passed": None,
+                    "xfailed_known": None, "failed": None, "duration_ms": None, "cases": []},
+         "history": []}
+    )

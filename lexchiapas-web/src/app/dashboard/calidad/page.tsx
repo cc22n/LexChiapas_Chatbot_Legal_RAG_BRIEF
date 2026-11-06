@@ -164,9 +164,9 @@ export default async function CalidadPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <StatTile
                     label={`Ultima corrida (#${latest.id})`}
-                    value={pct(latest.passed, latest.total)}
+                    value={pct(latest.passed ?? 0, latest.total ?? 0)}
                     delta={{
-                      text: `${latest.passed} passed, ${latest.xfailed_known} xfailed, ${latest.failed} failed de ${latest.total}`,
+                      text: `${latest.passed ?? 0} passed, ${latest.xfailed_known ?? 0} xfailed, ${latest.failed ?? 0} failed de ${latest.total ?? 0}`,
                       direction: "up",
                       good: true,
                     }}
@@ -177,18 +177,22 @@ export default async function CalidadPage() {
                   />
                   <StatTile
                     label="Fecha"
-                    value={new Date(latest.started_at).toLocaleDateString("es-MX", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    value={
+                      latest.started_at
+                        ? new Date(latest.started_at).toLocaleDateString("es-MX", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "--"
+                    }
                   />
                 </div>
 
                 <LineChart
                   data={historyAsc.map((r) => ({
-                    x: r.started_at,
-                    values: { passed: r.passed, xfailed: r.xfailed_known, failed: r.failed },
+                    x: r.started_at ?? "",
+                    values: { passed: r.passed ?? 0, xfailed: r.xfailed_known ?? 0, failed: r.failed ?? 0 },
                   }))}
                   series={[
                     { key: "passed", label: "Passed", colorVar: "--status-good" },

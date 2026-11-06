@@ -166,3 +166,37 @@ class AgentMetrics(BaseModel):
     route_distribution: list[RouteCount]
     avg_intentos: float | None
     self_reflection_trigger_rate: SelfReflectionRate
+
+
+class GoldenCase(BaseModel):
+    id: int
+    pregunta: str
+    passed: bool | None
+    expects_grounded: bool | None
+    actual_grounded: bool | None
+    articulo_esperado: str | None
+    posicion_encontrada: int | None
+    respuesta_snippet: str | None
+
+
+class GoldenRunSummary(BaseModel):
+    # Las columnas de golden_dataset_runs aceptan NULL: una corrida a medias
+    # (aun sin completed_at ni conteos) tambien debe poder serializarse.
+    id: int
+    started_at: datetime | None
+    completed_at: datetime | None
+    total: int | None
+    passed: int | None
+    xfailed_known: int | None
+    failed: int | None
+    duration_ms: int | None
+
+
+class GoldenRunDetail(GoldenRunSummary):
+    cases: list[GoldenCase]
+
+
+class GoldenDatasetMetrics(BaseModel):
+    # null si todavia no corrio ninguna evaluacion (tabla vacia).
+    latest: GoldenRunDetail | None
+    history: list[GoldenRunSummary]
