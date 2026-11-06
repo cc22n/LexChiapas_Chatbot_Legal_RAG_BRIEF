@@ -87,3 +87,11 @@ def test_smalltalk_ignores_unrelated_text():
     assert detect_smalltalk_response("Que clima hace hoy?") is None
     assert detect_smalltalk_response("") is None
     assert detect_smalltalk_response("   ") is None
+
+
+def test_in_scope_examples_are_unique_ascii():
+    # Convencion del proyecto: Python en ASCII puro; ejemplos repetidos solo suman peso a la Capa 1.
+    from app.rag.guardrails import IN_SCOPE_EXAMPLES
+
+    assert len(set(IN_SCOPE_EXAMPLES)) == len(IN_SCOPE_EXAMPLES)
+    assert all(e.isascii() for e in IN_SCOPE_EXAMPLES)

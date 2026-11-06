@@ -45,7 +45,15 @@ logger = logging.getLogger("lexchiapas.guardrails")
 # reales: 6 preguntas genuinamente fuera de dominio (capital de Francia,
 # receta, aritmetica, futbol, pelicula, receta de pastel) dieron como
 # maximo 0.2016 -- margen amplio (>0.18) contra el nuevo umbral.
-IN_SCOPE_THRESHOLD = 0.40
+# Recalibrado 2026-11-05 (0.40 -> 0.30) tras la migracion a OpenAI
+# text-embedding-3-large (2026-10-23): con 0.40 la Capa 1 rechazaba 13 de 32
+# preguntas coloquiales legitimas (41 %) sin palabras clave legales. Se
+# agregaron ademas 12 ejemplos coloquiales a IN_SCOPE_EXAMPLES. Medido en un
+# conjunto RESERVADO (no usado para elegir ejemplos ni umbral): 20 positivos
+# coloquiales nuevos -> 0 rechazados con 0.30 (5 con 0.40); 15 fuera de dominio
+# nuevos -> 0 aceptados (maximo 0.282). Margenes finos: re-medir si cambia el
+# modelo de embeddings (LexChiapas_Plan_Agente_Investigacion.md, seccion 13.2).
+IN_SCOPE_THRESHOLD = 0.30
 
 IN_SCOPE_EXAMPLES = [
     "Que dice la ley de Chiapas sobre el matrimonio?",
@@ -60,6 +68,22 @@ IN_SCOPE_EXAMPLES = [
     "Como se tramita una licencia de construccion en Chiapas?",
     "Que dice la constitucion politica del estado de Chiapas sobre la educacion?",
     "Cual es el proceso para presentar una denuncia penal en Chiapas?",
+    # Redaccion coloquial (2026-11-05): sin palabras clave legales ni "Chiapas",
+    # como escribe un usuario real. Temas distintos entre si; NO copian las
+    # preguntas del conjunto de medicion (LexChiapas_Plan_Agente_Investigacion.md
+    # seccion 13) para no inflar su resultado.
+    "Mi abuelo fallecio sin dejar testamento, quien hereda sus bienes?",
+    "Cuanto tengo que pagar de predial y que pasa si me atraso?",
+    "Que tramites hace un notario para una compraventa de terreno?",
+    "El doctor del hospital publico me trato mal, donde pongo una queja?",
+    "Una persona de mi familia no regresa a casa, que hago para reportarla?",
+    "Que ayudas tienen las personas con alguna discapacidad en el estado?",
+    "Una persona me debe dinero y no paga, como lo puedo reclamar en juicio?",
+    "Alguien me quito mis pertenencias en la calle, que castigo tiene?",
+    "Como solicito informacion publica a una dependencia de gobierno?",
+    "Que requisitos piden para ser candidato en las elecciones del estado?",
+    "Que reglas hay para trabajar como chofer de taxi o colectivo?",
+    "Una fabrica contamina el agua del arroyo, ante quien reclamo?",
 ]
 
 # Palabras clave legales genericas (sin acentos, se comparan contra texto ya
