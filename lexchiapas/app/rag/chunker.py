@@ -251,7 +251,7 @@ def _match_header(
 # el propio PDF tiene typos reales ("QUATTOUR" en vez de "QUATTUOR"); se
 # acepta cualquier palabra en mayusculas en esa posicion.
 ARTICULO_RE = re.compile(
-    r"^\s*(?:ARTICULOS?|ART\.)\s+(\d+[A-Z]*)(?:-([A-Z]))?(?:\s+([A-Z]+))?"
+    r"^\s*(?:ARTICULOS?|ART\.)\s+(\d+[A-Z]*)(?:-([A-Z]+))?(?:\s+([A-Z]+))?"
     r"\s*[\u00b0\u00ba]?\s*[.\-]+",
     re.IGNORECASE,
 )
@@ -504,7 +504,11 @@ def chunk_legal_text(raw_text: str, document_nombre: str = "") -> list[LegalChun
             flush()
             current_articulo = match.group(1)
             if match.group(2):
-                current_articulo = f"{current_articulo}-{match.group(2)}"
+                # Sufijo de una letra ("7-A") con guion; de varias letras
+                # ("280-BIS", Codigo de Procedimientos Civiles) como el resto
+                # de las variantes Bis/Ter: separado por espacio ("280 BIS").
+                separator = "-" if len(match.group(2)) == 1 else " "
+                current_articulo = f"{current_articulo}{separator}{match.group(2)}"
             if match.group(3):
                 current_articulo = f"{current_articulo} {match.group(3)}"
             current_content = [line]

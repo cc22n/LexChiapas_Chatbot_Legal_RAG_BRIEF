@@ -587,3 +587,16 @@ def test_stray_repeated_header_line_does_not_create_phantom_chunk():
     chunks = chunk_legal_text(text)
     assert [c.articulo_numero for c in chunks] == ["1185", "1186", "1187"]
     assert all(len(c.content) > 20 for c in chunks)
+
+
+def test_hyphenated_multiletter_suffix_is_labeled_with_space():
+    # Codigo de Procedimientos Civiles: "ART. 280-BIS.-" se reconocia como "280".
+    text = "\n".join(
+        [
+            "ART. 280.- Texto del articulo doscientos ochenta.",
+            "ART. 280-BIS.- Texto del articulo adicionado.",
+            "ART. 281.- Texto del siguiente.",
+            "ART. 7-A.- Un sufijo de una letra conserva el guion.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["280", "280 BIS", "281", "7-A"]
