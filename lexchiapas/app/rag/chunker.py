@@ -118,6 +118,44 @@ _ORDINAL_PREFIX_RE = re.compile(
 _ENUM_ITEM_RE = re.compile(r"^\s*(?:[a-z]|[ivxlcdm]+|\d+)[).]-?\s", re.IGNORECASE)
 
 
+def _is_consecutive_article(current_articulo: str | None, match: re.Match) -> bool:
+    """True si el encabezado encontrado es el articulo que SIGUE al activo: el
+    numero base es el siguiente (127 -> 128) o es la variante Bis/Ter/etc. del
+    mismo numero (411 -> 411 Bis). Corrige el caso real de la Ley de
+    Instituciones y Procedimientos Electorales: el Art. 127 termina sin punto
+    ("...apoyo ciudadano", pagina 194, "Articulo 128."), la heuristica de
+    mitad de oracion lo tomaba por una cita y fusionaba el 128 con el 127 (lo
+    mismo con el 147). Una cita a mitad de oracion casi nunca apunta al numero
+    inmediato siguiente; si lo hiciera, el articulo activo ya tendria su
+    contenido y el numero consecutivo es la mejor senal disponible.
+    """
+    if current_articulo is None:
+        return False
+    previous = re.match(r"\d+", current_articulo)
+    new_base = re.match(r"\d+", match.group(1))
+    if previous is None or new_base is None:
+        return False
+    previous_n, new_n = int(previous.group()), int(new_base.group())
+    has_suffix = bool(match.group(2) or match.group(3))
+    if new_n == previous_n + 1 and not match.group(1)[len(new_base.group()):] and not has_suffix:
+        return True
+    return new_n == previous_n and has_suffix and not re.search(r"[- ]", current_articulo)
+
+
+def _next_nonblank_repeats_header(lines: list[str], index: int, match: re.Match) -> bool:
+    """True si la siguiente linea no vacia es un encabezado del MISMO articulo
+    (mismo numero y sufijo). Un encabezado repetido de inmediato es un resto
+    suelto del PDF (ej. 'ARTICULO 1186.' antes de 'ART. 1186.-' en el Codigo
+    Civil), no un articulo nuevo: crearia un chunk fantasma de una sola linea.
+    Encabezados consecutivos de articulos DISTINTOS (275, 276...) si son reales.
+    """
+    for follower in lines[index + 1 :]:
+        if follower.strip():
+            nxt = ARTICULO_RE.match(_strip_accents(follower))
+            return nxt is not None and nxt.groups() == match.groups()
+    return False
+
+
 def _is_midsentence_line(current_articulo: str | None, current_content: list[str]) -> bool:
     """Misma heuristica que ya usa ARTICULO_RE mas abajo para distinguir un
     encabezado real de una cita a mitad de oracion que pdfplumber corto al
@@ -381,7 +419,7 @@ def chunk_legal_text(raw_text: str, document_nombre: str = "") -> list[LegalChun
                 )
             )
 
-    for line in lines:
+    for line_index, line in enumerate(lines):
         plain = _strip_accents(line)
 
         if past_transitorios:
@@ -456,7 +494,10 @@ def chunk_legal_text(raw_text: str, document_nombre: str = "") -> list[LegalChun
             # aceptar ')' como cierre, esa anotacion (que termina en parentesis,
             # no en punto) disparaba el mismo falso positivo que la cita a
             # mitad de oracion, fusionando articulos reales de mas.
-            if _is_midsentence_line(current_articulo, current_content):
+            if _is_midsentence_line(current_articulo, current_content) and not (
+                _is_consecutive_article(current_articulo, match)
+                and not _next_nonblank_repeats_header(lines, line_index, match)
+            ):
                 current_content.append(line)
                 continue
 

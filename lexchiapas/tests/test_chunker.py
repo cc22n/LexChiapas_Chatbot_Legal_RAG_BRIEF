@@ -518,3 +518,72 @@ def test_real_document_transitorios_with_trailing_period_does_not_leak_into_last
     assert articulo_141.content.strip().endswith(
         "IMPUGNADOS MEDIANTE EL RECURSO CORRESPONDIENTE."
     )
+
+
+# --- Numeracion consecutiva (Ley Electoral de Chiapas, 2026-11-06) -------------
+
+
+def test_article_ending_without_period_followed_by_consecutive_header_is_split():
+    # Caso real: el Art. 127 termina sin punto, luego el numero de pagina y el
+    # encabezado del 128 en su propia linea. Antes se fusionaban en un chunk.
+    text = "\n".join(
+        [
+            "Articulo 126.",
+            "1. Los candidatos presentaran su solicitud.",
+            "Articulo 127.",
+            "1. Recibida una solicitud, se verificara dentro de los cinco dias",
+            "con excepcion de lo relativo al porcentaje requerido de apoyo ciudadano",
+            "194",
+            "Articulo 128.",
+            "1. Si de la verificacion se advierte que se omitio un requisito, se notificara.",
+            "Articulo 129.",
+            "1. Las cedulas de apoyo no se computaran.",
+        ]
+    )
+    articulos = [c.articulo_numero for c in chunk_legal_text(text)]
+    assert articulos == ["126", "127", "128", "129"]
+
+
+def test_bis_variant_after_unpunctuated_article_is_split():
+    text = "\n".join(
+        [
+            "Articulo 411.",
+            "Este articulo termina sin puntuacion",
+            "Articulo 411 Bis.",
+            "Texto del articulo adicionado.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["411", "411 Bis"]
+
+
+def test_midsentence_citation_to_a_non_consecutive_article_still_does_not_split():
+    # Una cita a mitad de oracion a un articulo que NO es el siguiente sigue siendo texto del activo.
+    text = "\n".join(
+        [
+            "Articulo 6.",
+            "La sancion se estara a lo establecido en la parte final del",
+            "ARTICULO 4o. DE ESTE ORDENAMIENTO.",
+            "Articulo 7.",
+            "Texto del siete.",
+        ]
+    )
+    articulos = [c.articulo_numero for c in chunk_legal_text(text)]
+    assert articulos == ["6", "7"]
+
+
+def test_stray_repeated_header_line_does_not_create_phantom_chunk():
+    # Caso real (Codigo Civil): 'ARTICULO 1186.' suelto y, enseguida, el
+    # encabezado verdadero 'ART. 1186.-'. No debe quedar un chunk de una linea.
+    text = "\n".join(
+        [
+            "Articulo 1185.",
+            "El texto del articulo anterior termina sin puntuacion",
+            "ARTICULO 1186.",
+            "ART. 1186.- LA PERSONA QUE IMPRIMA UNA OBRA TENDRA LOS DERECHOS.",
+            "Articulo 1187.",
+            "Texto del 1187.",
+        ]
+    )
+    chunks = chunk_legal_text(text)
+    assert [c.articulo_numero for c in chunks] == ["1185", "1186", "1187"]
+    assert all(len(c.content) > 20 for c in chunks)
