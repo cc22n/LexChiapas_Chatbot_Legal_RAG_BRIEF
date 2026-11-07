@@ -142,6 +142,11 @@ def _is_consecutive_article(current_articulo: str | None, match: re.Match) -> bo
     return new_n == previous_n and has_suffix and not re.search(r"[- ]", current_articulo)
 
 
+def _is_next_number(current_articulo: str | None, number: str) -> bool:
+    previous = re.match(r"\d+", current_articulo or "")
+    return previous is not None and int(number) == int(previous.group()) + 1
+
+
 def _next_nonblank_repeats_header(lines: list[str], index: int, match: re.Match) -> bool:
     """True si la siguiente linea no vacia es un encabezado del MISMO articulo
     (mismo numero y sufijo). Un encabezado repetido de inmediato es un resto
@@ -255,6 +260,14 @@ ARTICULO_RE = re.compile(
     r"\s*[\u00b0\u00ba]?\s*[.\-]+",
     re.IGNORECASE,
 )
+
+# Encabezado SIN signo de puntuacion tras el numero ("Articulo 183 La accion...",
+# "Articulo. 147" con el numero solo en la linea): formatos reales de los PDF del
+# Congreso (Ley de Asentamientos Humanos, Ley Electoral). Es ambiguo con una cita
+# ("Articulo 183 de esta Ley..."), por eso solo se acepta si el numero es el
+# SIGUIENTE al articulo activo y el texto que sigue empieza con mayuscula o no
+# hay texto en la linea (ver _is_next_number en chunk_legal_text).
+ARTICULO_LOOSE_RE = re.compile(r"^\s*(?i:ARTICULO)\.?\s+(\d+)\s*(?:$|(?=[A-Z]))")
 
 # Seccion de "TRANSITORIOS" al final de la ley (a veces con letras
 # espaciadas por el PDF: "T R A N S I T O R I O"). No es un articulo
@@ -466,6 +479,23 @@ def chunk_legal_text(raw_text: str, document_nombre: str = "") -> list[LegalChun
             continue
 
         match = ARTICULO_RE.match(plain)
+        # "articulo 4o. de la Carta Magna" (todo en minusculas) es una cita dentro
+        # del texto, no un encabezado: los encabezados reales van capitalizados o
+        # en mayusculas ("Articulo", "ARTICULO", "ART."). Caso real: preambulo de la
+        # Ley de Derechos y Culturas Indigenas, que creaba un articulo fantasma "4o".
+        if match and re.match(r"^\s*articulos?\b", plain):
+            match = None
+        if match is None:
+            loose = ARTICULO_LOOSE_RE.match(plain)
+            if (
+                loose
+                and _is_next_number(current_articulo, loose.group(1))
+                and not _is_midsentence_line(current_articulo, current_content)
+            ):
+                flush()
+                current_articulo = loose.group(1)
+                current_content = [line]
+                continue
         if match:
             # Bug real encontrado con la Ley Estatal para Prevenir y Sancionar
             # la Tortura: un articulo puede CITAR a otro articulo por numero

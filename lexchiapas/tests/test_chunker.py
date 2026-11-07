@@ -600,3 +600,58 @@ def test_hyphenated_multiletter_suffix_is_labeled_with_space():
         ]
     )
     assert [c.articulo_numero for c in chunk_legal_text(text)] == ["280", "280 BIS", "281", "7-A"]
+
+
+def test_header_without_period_after_number_is_split_when_consecutive():
+    # Ley de Asentamientos Humanos: "Articulo 183 La accion urbanistica..." (sin punto).
+    text = "\n".join(
+        [
+            "Articulo 182.",
+            "La accion urbanistica por colaboracion se refiere a las actividades.",
+            "Articulo 183 La accion urbanistica por asociacion se refiere a las obras.",
+            "Articulo 184.",
+            "La accion de objetivo social se refiere a las urbanizaciones.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["182", "183", "184"]
+
+
+def test_standalone_number_header_with_period_before_number_is_split():
+    # Ley Electoral: "Articulo. 147" y el texto en la linea siguiente.
+    text = "\n".join(
+        [
+            "Articulo 146.",
+            "1. Texto del articulo anterior.",
+            "Articulo. 147",
+            "1. El conjunto de candidatos independientes accedera a la radio.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["146", "147"]
+
+
+def test_loose_header_that_is_not_the_next_number_is_just_text():
+    text = "\n".join(
+        [
+            "Articulo 10.",
+            "Se estara a lo dispuesto por lo siguiente.",
+            "Articulo 4 De esta ley establece las reglas generales.",
+            "Articulo 11.",
+            "Texto once.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["10", "11"]
+
+
+def test_lowercase_citation_in_the_preamble_is_not_an_article():
+    # Ley de Derechos y Culturas Indigenas: el considerando cita "articulo 4o. de la Carta Magna".
+    text = "\n".join(
+        [
+            "CONSIDERANDO",
+            "que lo dispuesto en el",
+            "articulo 4o. de la Carta Magna Federal.",
+            "Que los Estados estan obligados a observar el codigo politico.",
+            "Articulo 1.",
+            "Texto del articulo primero.",
+        ]
+    )
+    assert [c.articulo_numero for c in chunk_legal_text(text)] == ["1"]
