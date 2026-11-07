@@ -71,11 +71,14 @@ def _dispose_inherited_engine(**_kwargs) -> None:
 # via POST /admin/evaluation/run, nunca automatico. Correrla cada noche
 # gastaria API real (~35 min, NVIDIA NIM/OpenAI/xAI) sin que el pipeline
 # haya cambiado.
+# update_tasks.check_for_law_updates (reingesta automatica de una ley cuando
+# cambia su URL) YA NO esta en el Beat (2026-11-07). Reingerir solo, sin
+# ingestion-dedupe, sin comparar articulo por articulo y sin reconstruir
+# legal_relations, es riesgoso: el chunker llegaba a fusionar o perder
+# articulos en leyes reales (ver LexChiapas_Plan_Agente_Investigacion.md 13.11,
+# 13.17 y 13.19). La deteccion la hace el vigilante semanal (abajo), que solo
+# avisa; la tarea de reingesta sigue disponible para ejecutarla a mano.
 celery_app.conf.beat_schedule = {
-    "actualizar-leyes-diario": {
-        "task": "app.workers.update_tasks.check_for_law_updates",
-        "schedule": crontab(hour=3, minute=0),
-    },
     # Fase 9.8/C3: canario de salud cada 5 min (embeddings + pico de errores
     # de sistema) -> alerta a Telegram. Barato (1 llamada de embeddings por
     # tick) y sin dependencias de pago.

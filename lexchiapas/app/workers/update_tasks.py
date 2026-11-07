@@ -120,8 +120,10 @@ def _find_match(document_nombre: str, laws: list[dict]) -> dict | None:
 
 @celery_app.task(name="app.workers.update_tasks.check_for_law_updates")
 def check_for_law_updates() -> dict:
-    """Corre diario (Celery Beat, 3am) para detectar reformas de leyes ya
-    cargadas y reingerirlas.
+    """Detecta reformas de leyes ya cargadas y las reingiere. NO esta en el
+    Celery Beat desde 2026-11-07 (ver app.workers.celery_app): se ejecuta a
+    mano, con revision previa. La deteccion automatica la hace
+    app.workers.update_watcher (semanal, solo avisa).
 
     Senal real usada para detectar cambio: Document.fecha_ultima_reforma
     existe como columna pero no se llena de forma confiable hoy (ver
