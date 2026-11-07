@@ -37,6 +37,29 @@ _SYNONYM_RULES: list[tuple[re.Pattern, str]] = [
         re.compile(r"sin testamento|sin dejar testamento|muer\w* intestad\w*|fallec\w* intestad\w*|\bintestad\w*\b"),
         "sucesion legitima quienes tienen derecho a heredar orden de herederos",
     ),
+    # Reglas 2026-11-06, de gaps medidos con 32 preguntas coloquiales (plan de
+    # investigacion, seccion 13.1/13.9): la ley correcta no llegaba al primer
+    # resultado porque el usuario no usa el termino legal.
+    (
+        re.compile(r"\b(tumb|cort|tal|derrib)\w* (un |el |los |las |mi |su )?(arbol|arboles)\b|\btala\b|\bdesmont\w+"),
+        "tala de arboles aprovechamiento forestal sustentable autorizacion sanciones",
+    ),
+    (
+        re.compile(r"pas\w+ (un |el )?(alto|semaforo)|multa\w* de transito|infraccion\w* de transito|me infraccionaron"),
+        "infracciones de transito sanciones vialidad movilidad y transporte",
+    ),
+    (
+        re.compile(r"discapacidad|discapacitad\w*|silla de ruedas"),
+        "derechos de las personas con discapacidad inclusion apoyos",
+    ),
+    (
+        re.compile(r"\b(pozo|manantial|arroyo)\b.*\bagua\b|\bagua\b.*\b(pozo|manantial)\b"),
+        "aprovechamiento de aguas concesion permiso extraccion de agua",
+    ),
+    (
+        re.compile(r"(atend\w+|trat\w+) mal.*(hospital|clinica|medico|doctor)|(hospital|clinica|medico|doctor).*(trato|atendio|atendieron) mal"),
+        "derechos de los usuarios de servicios de salud queja atencion medica",
+    ),
 ]
 
 
