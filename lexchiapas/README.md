@@ -127,6 +127,6 @@ solo lectura de codigo.
   agente LangGraph (`app.rag.agent_pipeline`, decidir -> buscar -> generar,
   con reintento acotado de self-reflection) -- intercambiable sin tocar
   codigo, ver `app.bots.conversation_store.handle_turn`.
-- **Golden dataset real** (24 preguntas, `app/evaluation/golden_dataset.py`,
+- **Golden dataset real** (48 preguntas, `app/evaluation/golden_dataset.py`,
   corrido via `tests/test_rag_regression.py` contra la API real, sin mocks).
 - Deploy 24/7 y WhatsApp (via `BaseBot`, ver abajo) quedan pendientes.

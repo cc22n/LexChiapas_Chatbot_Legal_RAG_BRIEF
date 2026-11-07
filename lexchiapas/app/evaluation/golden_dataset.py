@@ -1,5 +1,6 @@
-"""Fuente unica de verdad de las 38 preguntas (24 originales + 14 casos de "no
-encontrado" agregados el 2026-10-26) del golden dataset real del
+"""Fuente unica de verdad de las 48 preguntas (24 originales + 14 casos de "no
+encontrado" agregados el 2026-10-26 + 10 de articulos recuperados por el
+chunker corregido, 2026-11-07) del golden dataset real del
 pipeline RAG (dense pgvector + BM25 + threshold + rerank + generacion
 grounded, ver app.rag.rag_pipeline.answer_question).
 
@@ -298,6 +299,82 @@ GOLDEN_DATASET: list[GoldenCase] = [
         # esta ley ... podran imponer al infractor ...") es ahora el art. 238; el
         # 214 actual dice "Se Deroga". Verificado leyendo ambos textos.
         articulo_esperado="238",
+        expects_grounded=True,
+    ),
+    # -------------------------------------------------------------------
+    # Bucket 1b (2026-11-07): articulos que el chunker anterior fundia con el
+    # vecino y se recuperaron al recargar (LexChiapas_Plan_Agente_Investigacion.md
+    # 13.11-13.19), mas articulos de reformas recientes. Cada articulo esperado
+    # se verifico leyendo su texto en la tabla `chunks`.
+    # -------------------------------------------------------------------
+    GoldenCase(
+        name="test_fiscal_apuestas_tasa",
+        question="Sobre que monto y con que tasa se calcula el impuesto por erogaciones en juegos con apuestas en Chiapas?",
+        ley_contains="Fiscal",
+        articulo_esperado="255 C",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_fiscal_hospedaje_plataformas",
+        question="Quien debe recaudar y enterar el impuesto por hospedaje cuando se ofrece a traves de una plataforma o intermediario?",
+        ley_contains="Fiscal",
+        articulo_esperado="241 A",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_fiscal_remate_cancelado",
+        question="Que se hace cuando se cancela o suspende un remate de bienes embargados en Chiapas?",
+        ley_contains="Fiscal",
+        articulo_esperado="151 A",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_salud_tianguis",
+        question="Que deben prever los tianguis para garantizar la higiene y sanidad en Chiapas?",
+        ley_contains="Salud",
+        articulo_esperado="142",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_electoral_candidatos_independientes_radio_tv",
+        question="Los candidatos independientes pueden acceder a la radio y la television durante las campanas en Chiapas?",
+        ley_contains="Procedimientos Electorales",
+        articulo_esperado="147",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_electoral_registro_candidato_independiente_requisitos",
+        question="En cuanto tiempo debe subsanar los requisitos omitidos quien solicita el registro como candidato independiente en Chiapas?",
+        ley_contains="Procedimientos Electorales",
+        articulo_esperado="128",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_civil_sucesion_padres",
+        question="Quien hereda si una persona muere sin descendientes ni conyuge en Chiapas?",
+        ley_contains="Libro Tercero",
+        articulo_esperado="1589",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_ambiental_listado_informes_preventivos",
+        question="Que listado debe publicar mensualmente la Secretaria sobre informes preventivos y estudios de impacto ambiental?",
+        ley_contains="Ambiental",
+        articulo_esperado="94",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_penal_violencia_familiar_agravada",
+        question="En que casos se agrava el delito de violencia familiar segun el Codigo Penal de Chiapas?",
+        ley_contains="codigo penal",
+        articulo_esperado="200",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_movilidad_transporte_plataformas",
+        question="Que se considera transporte de pasajeros privado especializado con chofer a traves de aplicaciones en Chiapas?",
+        ley_contains="Movilidad",
+        articulo_esperado="105 Bis",
         expects_grounded=True,
     ),
     # -------------------------------------------------------------------

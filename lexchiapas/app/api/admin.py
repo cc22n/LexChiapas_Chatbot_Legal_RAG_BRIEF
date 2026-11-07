@@ -138,7 +138,7 @@ def metrics_agent(db: Session = Depends(get_db)) -> dict:
 
 @router.post("/evaluation/run", response_model=EvaluationRunQueued, dependencies=[Depends(require_admin)])
 def trigger_golden_dataset_run() -> dict:
-    """Encola la corrida completa del golden dataset real (38 preguntas, ver
+    """Encola la corrida completa del golden dataset real (48 preguntas, ver
     app.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via
     Celery -- devuelve el task_id de inmediato, NO espera el resultado
     (WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier
