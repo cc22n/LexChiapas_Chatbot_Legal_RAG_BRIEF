@@ -75,7 +75,9 @@ def _normalize_name(name: str) -> str:
     cualquier direccion. NO usar igualdad estricta -- los nombres en las
     fuentes casi nunca coinciden caracter por caracter contra
     Document.nombre (mayusculas distintas, orden de palabras, etc.)."""
-    return strip_accents(name).strip().upper()
+    # split/join: colapsa espacios dobles (ej. 'LEY DE  VICTIMAS' en el catalogo
+    # del Congreso), que rompian el match por substring.
+    return " ".join(strip_accents(name).upper().split())
 
 
 def _guess_source(url: str | None) -> str | None:

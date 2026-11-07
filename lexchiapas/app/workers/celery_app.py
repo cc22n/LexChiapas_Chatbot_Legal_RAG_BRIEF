@@ -48,6 +48,7 @@ celery_app = Celery(
         "app.workers.update_tasks",
         "app.workers.evaluation_tasks",
         "app.workers.alerting_tasks",
+        "app.workers.update_watcher",
     ],
 )
 
@@ -85,6 +86,12 @@ celery_app.conf.beat_schedule = {
     # Auditoria 2026-10-24: canario de modelos LLM cada 6 h. Una llamada minima
     # (16 tokens) por entrada de llm.fallback_order: centavos al dia. Avisa solo
     # de fallos permanentes (404/410, 401/403, credito agotado).
+    # Vigilante de leyes (solo detecta y avisa por Telegram; no reingiere nada).
+    # Lunes 08:30. Ver app/workers/update_watcher.py.
+    "vigilante-leyes-semanal": {
+        "task": "app.workers.update_watcher.law_update_watcher",
+        "schedule": crontab(hour=8, minute=30, day_of_week=1),
+    },
     "canario-modelos-llm-6h": {
         "task": "app.workers.alerting_tasks.llm_models_canary",
         "schedule": crontab(minute=7, hour="*/6"),
