@@ -60,6 +60,37 @@ _SYNONYM_RULES: list[tuple[re.Pattern, str]] = [
         re.compile(r"(atend\w+|trat\w+) mal.*(hospital|clinica|medico|doctor)|(hospital|clinica|medico|doctor).*(trato|atendio|atendieron) mal"),
         "derechos de los usuarios de servicios de salud queja atencion medica",
     ),
+    # Reglas 2026-11-08 (plan de investigacion, 13.25): "terreno agricola junto a
+    # un rio" traia Codigo Civil, Salud y Penal en vez de las leyes de suelo y
+    # agua. Vocabulario tomado de los articulos reales: Ley Ambiental 184-185
+    # ("descargas de aguas residuales en cuerpos o corrientes de agua") y Ley de
+    # Asentamientos Humanos 72 y 76 ("areas no urbanizables ... vocacion
+    # agropecuaria").
+    (
+        re.compile(
+            r"contamin\w+ .{0,25}\b(agua|rio|arroyo|laguna|manantial)\w*|\b(agua|rio|arroyo)s? .{0,15}contamin"
+            r"|\b(tir|ech|descarg|verti|arroj)\w+ .{0,40}\b(rio|arroyo|laguna|barranca|agua)\b|aguas (negras|residuales)"
+        ),
+        "descargas de aguas residuales en cuerpos o corrientes de agua prevencion y control de la contaminacion del agua sanciones",
+    ),
+    (
+        re.compile(
+            r"\b(terreno|zona|tierra|predio|rancho|finca)s? (de |para |con uso )?(agricola|cultivo|siembra|sembrad)\w*"
+            r"|\buso agricola\b|\btierras? de (cultivo|siembra)\b|\bparcela\b"
+        ),
+        "areas no urbanizables vocacion agropecuaria uso de suelo programas de desarrollo urbano construccion",
+    ),
+    (
+        re.compile(
+            r"\b(licencia|permiso|autorizacion)\w* .{0,20}\b(constru\w+|edific\w+|obra)\b"
+            r"|\b(constru\w+|edific\w+|levantar) .{0,25}\b(permiso|licencia|autorizacion)\w*"
+        ),
+        "licencia de uso de suelo y construccion autorizacion desarrollo urbano municipio",
+    ),
+    (
+        re.compile(r"\b(orilla|ribera|margen|cerca|junto)\w* (de|del|a) (un |el |la )?(rio|arroyo|laguna)\b"),
+        "cauces zonas de riesgo proteccion de cuerpos de agua ordenamiento territorial asentamientos humanos",
+    ),
 ]
 
 

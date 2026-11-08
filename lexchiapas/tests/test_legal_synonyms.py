@@ -19,6 +19,13 @@ from app.rag.legal_synonyms import expand_legal_synonyms
         ("me atendieron mal en el hospital", "usuarios de servicios de salud"),
         ("el doctor de la clinica me trato mal", "usuarios de servicios de salud"),
         ("Me multaron por pasarme un ALTO", "infracciones de transito"),
+        ("Que pasa si contamino el agua de un rio?", "aguas residuales"),
+        ("Mi vecino descarga aguas negras al arroyo", "aguas residuales"),
+        ("El dueno de la fabrica echa desechos al agua del rio", "aguas residuales"),
+        ("Quiero construir una casa en un terreno agricola", "areas no urbanizables"),
+        ("Puedo hacer mi vivienda en una parcela?", "areas no urbanizables"),
+        ("Necesito licencia para construir una barda", "licencia de uso de suelo"),
+        ("Si construyo cerca de la orilla de un rio hay restricciones?", "proteccion de cuerpos de agua"),
     ],
 )
 def test_rule_fires_and_appends_term(question, expected_term):
@@ -38,6 +45,9 @@ def test_rule_fires_and_appends_term(question, expected_term):
         "cual es la pena por el delito de robo",
         "el alto mando del ejercito",  # "alto" suelto no es pasarse un alto
         "una persona sana puede donar sangre",
+        "Cual es la pena por contaminar el aire con humo?",
+        "Tire la basura en la calle, me pueden multar?",
+        "Cuanto mide un rio?",
     ],
 )
 def test_rule_does_not_fire_on_unrelated_questions(question):
