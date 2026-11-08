@@ -1,7 +1,8 @@
-import type { AgentTrace } from "@/lib/types";
+import type { AgentTrace, ResearchTrace } from "@/lib/types";
 
 interface TraceAccordionProps {
   trace: AgentTrace | null | undefined;
+  research?: ResearchTrace | null;
 }
 
 const ROUTE_LABELS: Record<AgentTrace["route"], string> = {
@@ -10,13 +11,14 @@ const ROUTE_LABELS: Record<AgentTrace["route"], string> = {
   articulo_especifico: "Lectura directa de un articulo",
   historial_ley: "Consulta del historial de reformas (grafo legal)",
   ninguna: "Sin busqueda (fuera de alcance)",
+  investigar: "Investigacion a fondo (varias busquedas combinadas)",
 };
 
 // agent_trace no existe todavia en la respuesta real del backend (ver
 // WEB_FRONTEND_PLAN.md Fase F) -- este componente no renderiza nada hasta
 // que el backend lo agregue, para no fingir una funcionalidad que hoy no
 // esta disponible en produccion.
-export function TraceAccordion({ trace }: TraceAccordionProps) {
+export function TraceAccordion({ trace, research }: TraceAccordionProps) {
   if (!trace) return null;
 
   return (
@@ -28,6 +30,19 @@ export function TraceAccordion({ trace }: TraceAccordionProps) {
         <p>{ROUTE_LABELS[trace.route]}</p>
         {trace.law_name && <p>Ley: {trace.law_name}</p>}
         {trace.articulo && <p>Articulo: {trace.articulo}</p>}
+        {research && research.subquestions.length > 0 && (
+          <div>
+            <p>Busque por separado:</p>
+            <ul className="ml-4 list-disc">
+              {research.subquestions.map((q) => (
+                <li key={q}>{q}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {research && research.documents_consulted.length > 0 && (
+          <p>Leyes consultadas: {research.documents_consulted.join("; ")}.</p>
+        )}
         {trace.self_reflection_triggered && (
           <p>Se reformulo la busqueda una vez antes de responder ({trace.intentos} intentos).</p>
         )}

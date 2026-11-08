@@ -30,12 +30,13 @@ async function errorDetail(res: Response): Promise<string> {
 export async function sendChatMessage(
   sessionId: string,
   message: string,
-  technical: boolean = false
+  technical: boolean = false,
+  research: boolean = false
 ): Promise<WebChatResponse> {
   const res = await fetch(`${API_BASE_URL}/api/chat/web`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, message, technical }),
+    body: JSON.stringify({ session_id: sessionId, message, technical, research }),
   });
 
   if (!res.ok) {

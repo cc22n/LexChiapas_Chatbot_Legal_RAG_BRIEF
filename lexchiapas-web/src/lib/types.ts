@@ -28,11 +28,19 @@ export interface RetrievedChunk {
 // viene poblado cuando el pipeline agentico corrio (ai_config.json
 // agentic_rag.enabled); None/null en el pipeline lineal.
 export interface AgentTrace {
-  route: "busqueda_general" | "busqueda_por_ley" | "articulo_especifico" | "historial_ley" | "ninguna";
+  route: "busqueda_general" | "busqueda_por_ley" | "articulo_especifico" | "historial_ley" | "ninguna" | "investigar";
   law_name: string | null;
   articulo: string | null;
   intentos: number;
   self_reflection_triggered: boolean;
+}
+
+// Espejo de app.schemas.chat.ResearchTrace: solo viene en el modo "Investigar a fondo".
+export interface ResearchTrace {
+  subquestions: string[];
+  areas: string[];
+  llm_calls: number;
+  documents_consulted: string[];
 }
 
 // Espejo de app.schemas.chat.WebChatResponse (lexchiapas/app/schemas/chat.py)
@@ -46,6 +54,7 @@ export interface WebChatResponse {
   message_id: number;
   out_of_scope: boolean;
   agent_trace: AgentTrace | null;
+  research: ResearchTrace | null;
 }
 
 export type FeedbackRating = "util" | "no_util";
@@ -60,4 +69,7 @@ export interface ChatMessageData {
   outOfScope?: boolean;
   isError?: boolean;
   agentTrace?: AgentTrace | null;
+  research?: ResearchTrace | null;
+  // El usuario pidio "Investigar a fondo" pero el servidor respondio por la ruta normal.
+  researchUnavailable?: boolean;
 }

@@ -101,8 +101,8 @@
       "max_intentos": 2
     },
     "research": {
-      "_note": "Modo investigacion (LexChiapas_Plan_Agente_Investigacion.md, 10.3 y seccion 5): ruta ADICIONAL que se pide por pregunta ('Investigar a fondo'), NO reemplaza la ruta agentica. Planifica 2-3 subpreguntas (1 llamada LLM), busca por cada una, une y reordena UNA vez, sintetiza con estructura fija (1 generacion) y pasa por el segundo gate (1 llamada); el tope duro es max_llm_calls (minimo efectivo 3). Apagado por defecto: una respuesta cuesta unas 3 llamadas LLM en vez de 2 y tarda mas.",
-      "enabled": false,
+      "_note": "Modo investigacion (LexChiapas_Plan_Agente_Investigacion.md, 10.3 y seccion 5): ruta ADICIONAL que se pide por pregunta ('Investigar a fondo'), NO reemplaza la ruta agentica. Planifica 2-3 subpreguntas (1 llamada LLM), busca por cada una, une y reordena UNA vez, sintetiza con estructura fija (1 generacion) y pasa por el segundo gate (1 llamada); el tope duro es max_llm_calls (minimo efectivo 3). Activado el 2026-11-08 (medido: 3 llamadas LLM y ~11 s por respuesta, contra ~10 s de la ruta normal); solo se usa cuando el usuario pulsa 'Investigar a fondo'. Poner enabled=false lo apaga sin tocar codigo (las peticiones caen a la ruta normal).",
+      "enabled": true,
       "max_subquestions": 3,
       "max_llm_calls": 4,
       "top_k": 8

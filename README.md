@@ -55,6 +55,13 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
   "Código Penal" vs. "Código de Procedimientos Penales"), pide aclarar en
   vez de adivinar o alucinar cuál — y retiene el artículo mencionado
   aunque la respuesta a esa aclaración sea solo el nombre de la ley.
+- **Modo "Investigar a fondo"**: ruta adicional, pedida por pregunta, para
+  consultas que cruzan varias leyes. Descompone la pregunta en 2-3 subpreguntas,
+  busca por separado, une y reordena una sola vez, y responde en cuatro párrafos
+  (qué dice la ley, cómo aplica, excepciones/reformas/derogaciones, qué no cubre)
+  con los términos técnicos explicados. Mismo tope de 3 llamadas al modelo y mismos
+  controles (umbral, segundo filtro, citas). Medido en 7 preguntas que cruzan leyes:
+  cubre 12 de 14 grupos de leyes contra 7 de 14 de la ruta normal, con latencia similar.
 - **GraphRAG**: relaciones de reforma/derogación/adición entre leyes,
   extraídas por regex de los marcadores reales del Periódico Oficial
   (sin LLM), navegables en un explorador visual público y también visibles

@@ -8,6 +8,14 @@ import { InlineRelationGraph } from "./InlineRelationGraph";
 import { MarkdownContent } from "./MarkdownContent";
 import { TraceAccordion } from "./TraceAccordion";
 
+// El modo investigacion responde en cuatro parrafos rotulados (texto plano); se
+// resaltan los rotulos para que se lea la estructura sin cambiar el contenido.
+const RESEARCH_LABELS = /^(Que dice la ley|Como aplica|Excepciones, reformas y derogaciones|Que no cubre esta respuesta):/gm;
+
+function highlightResearchLabels(content: string): string {
+  return content.replace(RESEARCH_LABELS, "**$1:**");
+}
+
 interface ChatMessageProps {
   message: ChatMessageData;
   sessionId: string | null;
@@ -44,7 +52,13 @@ export function ChatMessage({ message, sessionId }: ChatMessageProps) {
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
-          <MarkdownContent content={message.content} />
+          <MarkdownContent content={message.research ? highlightResearchLabels(message.content) : message.content} />
+        )}
+
+        {!isUser && message.researchUnavailable && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            El modo &quot;Investigar a fondo&quot; no esta disponible en este servidor; esta respuesta usa la busqueda normal.
+          </p>
         )}
 
         {!isUser && message.citations && message.grounded && (
@@ -55,7 +69,7 @@ export function ChatMessage({ message, sessionId }: ChatMessageProps) {
           <InlineRelationGraph lawName={message.agentTrace.law_name} />
         )}
 
-        {!isUser && <TraceAccordion trace={message.agentTrace} />}
+        {!isUser && <TraceAccordion trace={message.agentTrace} research={message.research} />}
 
         {!isUser && message.messageId !== undefined && !message.isError && (
           <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">

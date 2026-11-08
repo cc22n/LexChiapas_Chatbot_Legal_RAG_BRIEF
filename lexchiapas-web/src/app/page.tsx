@@ -26,6 +26,10 @@ export default function Home() {
   // en memoria (no localStorage): es una preferencia de ESTA sesion de
   // chat, no una configuracion persistente de la cuenta.
   const [technical, setTechnical] = useState(false);
+  // "Investigar a fondo": pide la ruta app.rag.research (varias busquedas
+  // combinadas, respuesta en cuatro parrafos). Tarda mas y usa mas llamadas al
+  // modelo, por eso es una opcion por pregunta y no el comportamiento base.
+  const [research, setResearch] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const response = await sendChatMessage(sessionId, text, technical);
+      const response = await sendChatMessage(sessionId, text, technical, research);
       setMessages((prev) => [
         ...prev,
         {
@@ -58,6 +62,8 @@ export default function Home() {
           grounded: response.grounded,
           outOfScope: response.out_of_scope,
           agentTrace: response.agent_trace,
+          research: response.research,
+          researchUnavailable: research && !response.research && !response.out_of_scope,
         },
       ]);
     } catch (err) {
@@ -96,13 +102,28 @@ export default function Home() {
         {loading && (
           <div className="flex justify-start">
             <div className="rounded-2xl bg-zinc-100 px-4 py-2 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              Buscando en las leyes de Chiapas...
+              {research
+                ? "Investigando a fondo en varias leyes de Chiapas (puede tardar unos segundos)..."
+                : "Buscando en las leyes de Chiapas..."}
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
       <div className="flex items-center justify-center gap-2 px-4 pb-1 text-xs">
+        <button
+          type="button"
+          aria-pressed={research}
+          onClick={() => setResearch((value) => !value)}
+          title="Busca por separado cada parte de tu pregunta en varias leyes y las combina. Tarda mas."
+          className={`rounded-full border px-3 py-1 transition ${
+            research
+              ? "border-emerald-600 bg-emerald-600 text-white"
+              : "border-zinc-300 bg-transparent text-zinc-500 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          }`}
+        >
+          Investigar a fondo
+        </button>
         <span className="text-zinc-500 dark:text-zinc-400">Respuestas:</span>
         <div
           role="radiogroup"
