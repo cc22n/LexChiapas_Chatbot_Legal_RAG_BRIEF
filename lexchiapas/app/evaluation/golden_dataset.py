@@ -1,6 +1,7 @@
-"""Fuente unica de verdad de las 48 preguntas (24 originales + 14 casos de "no
-encontrado" agregados el 2026-10-26 + 10 de articulos recuperados por el
-chunker corregido, 2026-11-07) del golden dataset real del
+"""Fuente unica de verdad de las 53 preguntas (24 originales + 14 casos de "no
+encontrado" de 2026-10-26, de los cuales 8 pasaron a positivos el 2026-11-07 al
+cargarse su ley + 10 de articulos recuperados por el chunker corregido + 5 de las
+leyes nuevas) del golden dataset real del
 pipeline RAG (dense pgvector + BM25 + threshold + rerank + generacion
 grounded, ver app.rag.rag_pipeline.answer_question).
 
@@ -377,6 +378,47 @@ GOLDEN_DATASET: list[GoldenCase] = [
         articulo_esperado="105 Bis",
         expects_grounded=True,
     ),
+    # Bucket 1c (2026-11-07): leyes del primer lote cargado con el cargador generico
+    # (Constitucion y 12 leyes, plan 13.23). Ocho casos antes "no encontrado" /
+    # "limitacion conocida" (condominio, voluntad anticipada, seguridad privada,
+    # extincion de dominio, turismo, catastro, obra publica, escuela particular)
+    # pasaron a positivos porque su ley ya esta cargada; articulo verificado
+    # leyendo el texto.
+    GoldenCase(
+        name="test_constitucion_requisitos_gobernador",
+        question="Cuales son los requisitos para ser gobernador del Estado de Chiapas?",
+        ley_contains="Constitucion Politica",
+        articulo_esperado="52",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_constitucion_integracion_congreso",
+        question="Cada cuantos anos se elige a los diputados del Congreso del Estado de Chiapas?",
+        ley_contains="Constitucion Politica",
+        articulo_esperado="37",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_mecanismos_alternativos_tipos",
+        question="Que es la mediacion segun la ley de mecanismos alternativos de solucion de controversias de Chiapas?",
+        ley_contains="Mecanismos Alternativos",
+        articulo_esperado="6",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_municipal_atribuciones_presidente",
+        question="Que atribuciones tiene el presidente municipal en Chiapas?",
+        ley_contains="Gobierno y Administracion Municipal",
+        articulo_esperado="57",
+        expects_grounded=True,
+    ),
+    GoldenCase(
+        name="test_responsabilidades_sujetos",
+        question="Quienes son sujetos de la Ley de Responsabilidades Administrativas de Chiapas?",
+        ley_contains="Responsabilidades Administrativas",
+        articulo_esperado="4",
+        expects_grounded=True,
+    ),
     # -------------------------------------------------------------------
     # Bucket 2: temas legitimamente fuera del corpus (preguntas en dominio
     # legal, guardrails las deja pasar, pero no hay ley cargada que las
@@ -435,28 +477,18 @@ GOLDEN_DATASET: list[GoldenCase] = [
     # casos de este bucket no bastaban para medirlo.
     # -------------------------------------------------------------------
     GoldenCase(
-        name="test_no_encontrado_voluntad_anticipada_limitacion_conocida",
+        name="test_voluntad_anticipada_documento",
         question="Como hago un documento de voluntad anticipada para rechazar tratamientos medicos en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "El termino 'voluntad anticipada' no aparece en ningun chunk activo "
-            "(la ley estatal, LEY_0149, esta pendiente de cargar). En 3 "
-            "repeticiones sin cache dio grounded True/False/False (y False en "
-            "la verificacion inicial): el segundo gate a veces acepta como "
-            "fundamento un articulo cercano de la Ley de Salud (art. 117 y "
-            "siguientes). Medido el 2026-10-26."
-        ),
+        ley_contains="Voluntad Anticipada",
+        articulo_esperado="6",
+        expects_grounded=True,
     ),
     GoldenCase(
-        name="test_no_encontrado_escuela_particular",
+        name="test_educacion_escuela_particular",
         question="Que requisitos hay para abrir una escuela particular en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
+        ley_contains="Educacion",
+        articulo_esperado="171",
+        expects_grounded=True,
     ),
     GoldenCase(
         name="test_no_encontrado_seguro_social",
@@ -473,43 +505,25 @@ GOLDEN_DATASET: list[GoldenCase] = [
         expects_grounded=False,
     ),
     GoldenCase(
-        name="test_no_encontrado_extincion_dominio_limitacion_conocida",
+        name="test_extincion_dominio_tramite",
         question="Como se tramita la extincion de dominio de un bien relacionado con un delito en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "No hay ley de extincion de dominio cargada; el tema solo se cita "
-            "de pasada en los arts. 122 y 149 de la Ley de Victimas (la ley "
-            "estatal esta pendiente). En 3 repeticiones sin cache dio grounded "
-            "False/True/False (y False en la verificacion inicial). Medido el "
-            "2026-10-26."
-        ),
+        ley_contains="Extincion de Dominio",
+        articulo_esperado="20",
+        expects_grounded=True,
     ),
     GoldenCase(
-        name="test_no_encontrado_seguridad_privada",
+        name="test_seguridad_privada_requisitos",
         question="Que requisitos necesita una empresa de seguridad privada para operar en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
+        ley_contains="Seguridad Privada",
+        articulo_esperado="14",
+        expects_grounded=True,
     ),
     GoldenCase(
-        name="test_no_encontrado_turismo_limitacion_conocida",
+        name="test_turismo_prestador_obligaciones",
         question="Que obligaciones tiene un prestador de servicios turisticos en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "No hay Ley de Turismo cargada (pendiente); el corpus solo tiene "
-            "menciones sueltas (p. ej. Ley de Transparencia art. 66, que lista "
-            "a los prestadores de servicios turisticos). En 3 repeticiones sin "
-            "cache dio grounded True/False/False (y False en la verificacion "
-            "inicial). Medido el 2026-10-26."
-        ),
+        ley_contains="Turismo",
+        articulo_esperado="13",
+        expects_grounded=True,
     ),
     GoldenCase(
         name="test_no_encontrado_ley_de_amparo",
@@ -552,53 +566,25 @@ GOLDEN_DATASET: list[GoldenCase] = [
         expects_grounded=False,
     ),
     GoldenCase(
-        name="test_no_encontrado_catastro_limitacion_conocida",
+        name="test_catastro_valor_catastral",
         question="Como se actualiza el valor catastral de un predio en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "No hay Ley de Catastro cargada (LEY_0020 del Congreso, pendiente). "
-            "El art. 371 del Codigo Fiscal habla del registro catastral de "
-            "bienes inmuebles del Gobierno del Estado y el segundo gate lo "
-            "acepta: grounded=True con una respuesta tangencial que no explica "
-            "como se actualiza el valor catastral de un predio particular. "
-            "Observado en 1 corrida (2026-10-26)."
-        ),
+        ley_contains="Catastro",
+        articulo_esperado="44",
+        expects_grounded=True,
     ),
     GoldenCase(
-        name="test_no_encontrado_licitacion_obra_limitacion_conocida",
+        name="test_obra_publica_licitacion",
         question="Cual es el procedimiento para licitar una obra publica estatal en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "No hay Ley de Obra Publica cargada (LEY_0044 del Congreso, "
-            "pendiente). El art. 370 del Codigo Fiscal solo remite a 'las leyes "
-            "relativas a la obra publica' y la respuesta lo presenta como el "
-            "procedimiento. Observado en 1 corrida (2026-10-26)."
-        ),
+        ley_contains="Obra Publica",
+        articulo_esperado="52",
+        expects_grounded=True,
     ),
     GoldenCase(
-        name="test_no_encontrado_condominio_limitacion_conocida",
+        name="test_condominio_cuotas_mantenimiento",
         question="Que dice la ley sobre las cuotas de mantenimiento y el reglamento de un condominio en Chiapas?",
-        ley_contains=None,
-        articulo_esperado=None,
-        expects_grounded=False,
-        known_limitation=True,
-        limitation_kind=LIMITATION_TOLERATE_GROUNDED_TRUE,
-        known_limitation_reason=(
-            "No hay Ley de Propiedad en Condominio cargada (LEY_0087 del "
-            "Congreso, pendiente). La Ley de Fraccionamientos (arts. 3 y 78) "
-            "menciona el regimen de propiedad en condominio de forma tangencial; "
-            "el bot reconoce en su texto que no hay informacion especifica sobre "
-            "cuotas y reglamento, pero aun asi sale grounded=True. Observado en "
-            "1 corrida (2026-10-26)."
-        ),
+        ley_contains="Condominio",
+        articulo_esperado="88",
+        expects_grounded=True,
     ),
     # -------------------------------------------------------------------
     # Bucket 3: fuera de dominio total -- deben ser rechazadas por Capa 1

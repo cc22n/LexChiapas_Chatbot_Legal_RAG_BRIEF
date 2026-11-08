@@ -70,7 +70,7 @@ Consulta:  pregunta -> hybrid search (denso + BM25) -> umbral de similitud -> re
 - **Guardrails en 3 capas**: fuera de alcance, intentos de jailbreak, y un
   segundo gate de grounding que audita la respuesta ya generada contra los
   chunks que la originaron.
-- **Evaluación medida, no "a ojo"**: golden dataset de 48 preguntas reales
+- **Evaluación medida, no "a ojo"**: golden dataset de 53 preguntas reales
   contra el corpus, corrida bajo demanda (Celery) y con historial de
   resultados, no solo una corrida manual perdida en una terminal.
 - **Confiabilidad operativa**: request ID que correlaciona logs de un mismo
@@ -130,11 +130,11 @@ celery -A app.workers.celery_app worker --loglevel=info
 ## Estado
 
 Backend y frontend funcionales de punta a punta, verificados contra datos
-reales (no mocks): 29 leyes del Estado de Chiapas (32 documentos activos,
-12,400+ chunks; el Código Civil son 4 libros),
+reales (no mocks): 42 leyes del Estado de Chiapas (45 documentos activos,
+15,400+ chunks; el Código Civil son 4 libros),
 RAG híbrido con reranking real, pipeline agéntico (ruta por defecto en
-producción, medido contra un golden dataset de 48 preguntas), grafo de
-2,906 relaciones legales reales (reforma/derogación/adición) extraídas del
+producción, medido contra un golden dataset de 53 preguntas), grafo de
+3,611 relaciones legales reales (reforma/derogación/adición) extraídas del
 corpus, panel de métricas con 5 vistas (uso, calidad, performance,
 guardrails, agente), y un explorador público del grafo de relaciones
 legales. Deploy 24/7 y cobertura del corpus completo del Congreso (146
