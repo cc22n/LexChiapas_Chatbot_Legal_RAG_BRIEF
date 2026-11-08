@@ -41,19 +41,24 @@ def _norm(text: str) -> str:
     return strip_accents(text).lower()
 
 
-def strip_unsupported_filler(answer: str) -> tuple[str, bool]:
+def strip_unsupported_filler(answer: str, admission_scope: str | None = None) -> tuple[str, bool]:
     """Devuelve (respuesta_limpia, hubo_relleno).
 
     `hubo_relleno` es True solo si la respuesta admite falta de informacion Y
     contiene alguna frase de relleno; entonces el llamador debe tratarla como
-    NO fundamentada. Las frases con relleno se quitan conservando los saltos
+    NO fundamentada. `admission_scope` limita DONDE se busca la admision
+    (por defecto, la respuesta entera): el modo investigacion la acota a su
+    primer parrafo porque sus otros rotulos incluyen frases fijas como 'No
+    encontre excepciones ni reformas en los fragmentos'. Las frases con relleno
+    se quitan conservando los saltos
     de parrafo. Si quitarlas dejara la respuesta vacia, se devuelve el texto
     original (igual se reporta el relleno).
     """
     if not answer:
         return answer, False
     normalized = _norm(answer)
-    if not (_ADMIT_RE.search(normalized) and _FILLER_RE.search(normalized)):
+    admission_text = _norm(admission_scope) if admission_scope is not None else normalized
+    if not (_ADMIT_RE.search(admission_text) and _FILLER_RE.search(normalized)):
         return answer, False
 
     cleaned_parts: list[str] = []

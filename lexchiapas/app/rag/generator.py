@@ -81,6 +81,32 @@ _ESTILO_TECNICO = (
     "asume que quien pregunta ya conoce el vocabulario juridico basico."
 )
 
+# Modo investigacion (app.rag.research, plan 10.3): respuesta con estructura fija
+# en cuatro parrafos rotulados, en lenguaje simple con el termino tecnico entre
+# parentesis la primera vez. Reemplaza al estilo cotidiano/tecnico; la regla de
+# contenido (solo fragmentos, cita ley y articulo) sigue siendo la de _PROMPT_BASE.
+_ESTILO_INVESTIGACION = (
+    "REGISTRO Y ESTRUCTURA (investigacion a fondo): se te dan fragmentos de VARIAS "
+    "leyes recuperados para distintas partes de la pregunta. Redacta en lenguaje "
+    "simple y, cuando uses un termino tecnico, escribelo la primera vez con su "
+    "explicacion entre parentesis (ej. la prescripcion (extincion de un derecho por "
+    "el paso del tiempo)). Estructura la respuesta en EXACTAMENTE cuatro parrafos "
+    "de texto plano, cada uno iniciando con su rotulo seguido de dos puntos y sin "
+    "ningun otro formato: "
+    "1) 'Que dice la ley:' lo que establecen los fragmentos, citando ley y articulo "
+    "de cada afirmacion. "
+    "2) 'Como aplica:' que pasos, plazos, requisitos o consecuencias se derivan, "
+    "SOLO si aparecen en los fragmentos; si no, dilo. "
+    "3) 'Excepciones, reformas y derogaciones:' lo que los fragmentos indiquen "
+    "(articulos marcados DEROGADO, salvedades, reformas); si no hay nada, escribe "
+    "'No encontre excepciones ni reformas en los fragmentos recuperados.' "
+    "4) 'Que no cubre esta respuesta:' sin afirmar contenido legal nuevo, indica "
+    "que partes de la pregunta no tienen fundamento en los fragmentos, y que el "
+    "sistema solo contiene leyes del Estado de Chiapas ya cargadas (no leyes "
+    "federales, reglamentos municipales ni leyes estatales aun no cargadas), por lo "
+    "que conviene consultar esas fuentes o a un abogado para lo que quede fuera."
+)
+
 # Default: sin la bandera visual_answers.comparison_tables (ver _system_prompt
 # abajo), identico al comportamiento historico -- texto plano puro, pensado
 # originalmente para Telegram (Fase 3.5) pero aplicado a los dos canales.
@@ -133,7 +159,7 @@ _FORMATO_CON_TABLAS = (
 SYSTEM_PROMPT = _PROMPT_BASE + _FORMATO_TEXTO_PLANO + _ESTILO_COTIDIANO
 
 
-def _system_prompt(technical: bool = False) -> str:
+def _system_prompt(technical: bool = False, research: bool = False) -> str:
     # Formato (tablas comparativas): bandera Fase 1 (contenido visual, ver
     # PLAN.md), config-driven global -- mismo patron que hyde/agentic_rag,
     # default False en codigo aunque el JSON diga true, leida en caliente en
@@ -150,6 +176,8 @@ def _system_prompt(technical: bool = False) -> str:
     # elige en la UI (ver WebChatRequest.technical), nunca leido de
     # ai_config.json.
     estilo = _ESTILO_TECNICO if technical else _ESTILO_COTIDIANO
+    if research:
+        estilo = _ESTILO_INVESTIGACION
 
     return _PROMPT_BASE + formato + estilo
 
@@ -183,6 +211,7 @@ def build_prompt(
     chunks: list[RetrievedChunk],
     conversation_history: list[dict] | None = None,
     technical: bool = False,
+    research: bool = False,
 ) -> list[dict]:
     """conversation_history (Fase 2.6): turnos previos de la MISMA
     conversacion, formato [{"role": "user"|"assistant", "content": str}, ...]
@@ -219,7 +248,7 @@ def build_prompt(
         f"Fragmentos legales recuperados:\n<<<FRAGMENTOS>>>\n{context}\n<<<FIN_FRAGMENTOS>>>"
         f"\n\nPregunta del usuario: {question}"
     )
-    messages = [{"role": "system", "content": _system_prompt(technical)}]
+    messages = [{"role": "system", "content": _system_prompt(technical, research=research)}]
     if conversation_history:
         messages.extend(
             {**turn, "content": _strip_trailing_disclaimer(turn["content"])}
@@ -236,6 +265,7 @@ def generate_answer(
     chunks: list[RetrievedChunk],
     conversation_history: list[dict] | None = None,
     technical: bool = False,
+    research: bool = False,
 ) -> tuple[str, str | None, int | None, int | None]:
     """Devuelve (respuesta_con_disclaimer, modelo_usado, prompt_tokens,
     completion_tokens). modelo_usado y los tokens son None cuando no hubo
@@ -247,7 +277,9 @@ def generate_answer(
     if not chunks:
         return NO_ENCONTRADO, None, None, None
 
-    messages = build_prompt(question, chunks, conversation_history=conversation_history, technical=technical)
+    messages = build_prompt(
+        question, chunks, conversation_history=conversation_history, technical=technical, research=research
+    )
     # Fase 9.8/A10: marca esta llamada como la generacion principal para que el
     # acumulador de tokens la atribuya a la cubeta de generacion (no auxiliar).
     with generation_scope():

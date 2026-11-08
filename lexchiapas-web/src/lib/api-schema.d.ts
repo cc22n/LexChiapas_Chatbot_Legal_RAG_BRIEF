@@ -74,7 +74,7 @@ export interface paths {
         put?: never;
         /**
          * Trigger Golden Dataset Run
-         * @description Encola la corrida completa del golden dataset real (38 preguntas, ver
+         * @description Encola la corrida completa del golden dataset real (53 preguntas, ver
          *     app.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via
          *     Celery -- devuelve el task_id de inmediato, NO espera el resultado
          *     (WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier
@@ -742,6 +742,22 @@ export interface components {
             /** Rating */
             rating: string;
         };
+        /**
+         * ResearchTrace
+         * @description Traza del modo investigacion (app.rag.research): que subpreguntas se
+         *     planificaron y cuantas llamadas LLM costo el turno. Solo se puebla cuando
+         *     la respuesta salio de esa ruta.
+         */
+        ResearchTrace: {
+            /** Areas */
+            areas?: string[];
+            /** Documents Consulted */
+            documents_consulted?: string[];
+            /** Llm Calls */
+            llm_calls: number;
+            /** Subquestions */
+            subquestions: string[];
+        };
         /** RetrievedChunk */
         RetrievedChunk: {
             /** Articulo Numero */
@@ -856,6 +872,11 @@ export interface components {
         WebChatRequest: {
             /** Message */
             message: string;
+            /**
+             * Research
+             * @default false
+             */
+            research: boolean;
             /** Session Id */
             session_id: string;
             /**
@@ -892,6 +913,7 @@ export interface components {
             out_of_scope: boolean;
             /** Prompt Tokens */
             prompt_tokens?: number | null;
+            research?: components["schemas"]["ResearchTrace"] | null;
             /** Retrieved Chunks */
             retrieved_chunks: components["schemas"]["RetrievedChunk"][];
             /** Search Time Ms */

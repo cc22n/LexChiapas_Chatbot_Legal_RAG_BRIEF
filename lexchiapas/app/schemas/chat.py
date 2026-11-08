@@ -54,6 +54,17 @@ class AgentTrace(BaseModel):
     self_reflection_triggered: bool
 
 
+class ResearchTrace(BaseModel):
+    """Traza del modo investigacion (app.rag.research): que subpreguntas se
+    planificaron y cuantas llamadas LLM costo el turno. Solo se puebla cuando
+    la respuesta salio de esa ruta."""
+
+    subquestions: list[str]
+    areas: list[str] = Field(default_factory=list)
+    llm_calls: int
+    documents_consulted: list[str] = Field(default_factory=list)
+
+
 class ChatResponse(BaseModel):
     answer: str
     retrieved_chunks: list[RetrievedChunk]
@@ -101,6 +112,8 @@ class ChatResponse(BaseModel):
     # (app.rag.rag_pipeline.answer_question), mismo criterio explicito que
     # was_rewritten/search_time_ms arriba documentan cuando quedan None.
     agent_trace: AgentTrace | None = None
+    # Solo en el modo investigacion (app.rag.research); None en cualquier otra ruta.
+    research: ResearchTrace | None = None
 
 
 class WebChatRequest(BaseModel):
@@ -110,6 +123,10 @@ class WebChatRequest(BaseModel):
     # app.rag.generator._ESTILO_TECNICO/_ESTILO_COTIDIANO) -- default False
     # (cotidiano) preserva el comportamiento historico para quien no lo manda.
     technical: bool = False
+    # "Investigar a fondo": pide la ruta app.rag.research. Solo tiene efecto si
+    # ai_config.json agentic_rag.research.enabled=true; si no, se responde por la
+    # ruta normal.
+    research: bool = False
 
 
 class WebChatResponse(ChatResponse):

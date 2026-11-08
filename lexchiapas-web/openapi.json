@@ -1200,6 +1200,42 @@
         "title": "RatingCount",
         "type": "object"
       },
+      "ResearchTrace": {
+        "description": "Traza del modo investigacion (app.rag.research): que subpreguntas se\nplanificaron y cuantas llamadas LLM costo el turno. Solo se puebla cuando\nla respuesta salio de esa ruta.",
+        "properties": {
+          "areas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "documents_consulted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Documents Consulted",
+            "type": "array"
+          },
+          "llm_calls": {
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "subquestions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subquestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "subquestions",
+          "llm_calls"
+        ],
+        "title": "ResearchTrace",
+        "type": "object"
+      },
       "RetrievedChunk": {
         "properties": {
           "articulo_numero": {
@@ -1543,6 +1579,11 @@
             "title": "Message",
             "type": "string"
           },
+          "research": {
+            "default": false,
+            "title": "Research",
+            "type": "boolean"
+          },
           "session_id": {
             "title": "Session Id",
             "type": "string"
@@ -1665,6 +1706,16 @@
               }
             ],
             "title": "Prompt Tokens"
+          },
+          "research": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "retrieved_chunks": {
             "items": {
@@ -1943,7 +1994,7 @@
     },
     "/admin/evaluation/run": {
       "post": {
-        "description": "Encola la corrida completa del golden dataset real (38 preguntas, ver\napp.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via\nCelery -- devuelve el task_id de inmediato, NO espera el resultado\n(WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier\ntimeout razonable de un endpoint HTTP). El resultado final se consulta\ndespues con GET /admin/metrics/golden_dataset.",
+        "description": "Encola la corrida completa del golden dataset real (53 preguntas, ver\napp.evaluation.golden_dataset, mas de 30 minutos y llamadas reales de API) via\nCelery -- devuelve el task_id de inmediato, NO espera el resultado\n(WEB_FRONTEND_PLAN.md seccion 3.3, item 4: ese tiempo excede cualquier\ntimeout razonable de un endpoint HTTP). El resultado final se consulta\ndespues con GET /admin/metrics/golden_dataset.",
         "operationId": "trigger_golden_dataset_run_admin_evaluation_run_post",
         "parameters": [
           {

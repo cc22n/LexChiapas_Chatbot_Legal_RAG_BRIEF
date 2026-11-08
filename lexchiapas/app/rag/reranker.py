@@ -39,7 +39,7 @@ def _rrf_scores(reranker_scores: list[float]) -> list[float]:
     return [1.0 / (RRF_K + (i + 1)) + 1.0 / (RRF_K + reranker_rank[i]) for i in range(n)]
 
 
-def rerank(query_text: str, candidates: list[RetrievedChunk]) -> list[RetrievedChunk]:
+def rerank(query_text: str, candidates: list[RetrievedChunk], top_k: int | None = None) -> list[RetrievedChunk]:
     """Reordena los candidatos de hybrid_search (con un reranker real via
     reranker_router.py, cayendo a una heuristica local si ambos proveedores
     externos fallan) y recorta a top-K.
@@ -93,5 +93,7 @@ def rerank(query_text: str, candidates: list[RetrievedChunk]) -> list[RetrievedC
             reverse=True,
         )
 
-    top_k = get_ai_config()["retrieval"]["top_k"]
+    # top_k explicito: el modo investigacion (app.rag.research) pide mas
+    # fragmentos que la ruta normal; sin argumento se conserva el de la config.
+    top_k = top_k or get_ai_config()["retrieval"]["top_k"]
     return reranked[:top_k]

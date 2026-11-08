@@ -99,6 +99,13 @@
       "_note": "Fase 7 Etapa 2. Solo tiene efecto si agentic_rag.enabled=true (self_reflection vive DENTRO del grafo del agente, no del pipeline lineal). Reintenta UNA vez (max_intentos=2 intentos totales, tope duro) reformulando la consulta de busqueda cuando el segundo gate de grounding (app.rag.grounding.answer_is_grounded_in_practice) degrada grounded=True a False DESPUES de generar con chunks que si pasaron el threshold real -- ver app.rag.agent_pipeline._should_retry_after_generar para la condicion completa y la evidencia real medida (PLAN.md Fase 7 Etapa 2) que justifica este valor. NUNCA reintenta cuando el gate primario ya fue False desde el intento 1 (medido: reintentar ahi con busqueda_general reintroduciria falsos positivos que la ruta busqueda_por_ley ya evita gratis en 2/3 casos documentados). MEDIDO (PLAN.md Fase 7 Etapa 2, 5 preguntas reales x 2 corridas): el reintento se disparo 1 de 5 veces, no cambio el resultado final (siguio correctamente grounded=False, sin alucinar) y costo ~2x el tiempo de esa pregunta (252s vs ~85-120s de un intento unico comparable). Sin mejora medida todavia -- se deja enabled=false por default hasta medir un caso real donde SI cambie un resultado, mismo criterio ya aplicado a reranker/HyDE en este proyecto (no asumir beneficio, medirlo).",
       "enabled": false,
       "max_intentos": 2
+    },
+    "research": {
+      "_note": "Modo investigacion (LexChiapas_Plan_Agente_Investigacion.md, 10.3 y seccion 5): ruta ADICIONAL que se pide por pregunta ('Investigar a fondo'), NO reemplaza la ruta agentica. Planifica 2-3 subpreguntas (1 llamada LLM), busca por cada una, une y reordena UNA vez, sintetiza con estructura fija (1 generacion) y pasa por el segundo gate (1 llamada); el tope duro es max_llm_calls (minimo efectivo 3). Apagado por defecto: una respuesta cuesta unas 3 llamadas LLM en vez de 2 y tarda mas.",
+      "enabled": false,
+      "max_subquestions": 3,
+      "max_llm_calls": 4,
+      "top_k": 8
     }
   },
   "visual_answers": {

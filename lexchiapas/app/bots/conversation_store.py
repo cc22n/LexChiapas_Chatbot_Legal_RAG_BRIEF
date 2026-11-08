@@ -11,6 +11,7 @@ from app.rag.agent_pipeline import answer_question_agentic
 from app.rag.guardrails import detect_jailbreak_attempt
 from app.rag.memory import get_recent_history, invalidate_history_cache
 from app.rag.rag_pipeline import answer_question
+from app.rag.research import answer_question_research
 from app.schemas.chat import ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def get_or_create_conversation(db: Session, platform: str, user_id: str, chat_id
 
 
 def handle_turn(
-    db: Session, platform: str, user_id: str, chat_id: str, text: str, technical: bool = False
+    db: Session, platform: str, user_id: str, chat_id: str, text: str, technical: bool = False, research: bool = False
 ) -> tuple[ChatResponse, Message]:
     """Persiste el turno completo (mensaje de usuario + respuesta) para
     cualquier canal (Telegram, web, ...). Comun a todos los BaseBot y al
@@ -96,7 +97,12 @@ def handle_turn(
         # ai_config.json malformado (AIConfigError) degrada con el mensaje de
         # error del sistema en vez de un 500 crudo, igual que cualquier otro
         # fallo del turno.
-        if get_ai_config().get("agentic_rag", {}).get("enabled", False):
+        agentic_config = get_ai_config().get("agentic_rag", {})
+        if research and agentic_config.get("research", {}).get("enabled", False):
+            # Modo investigacion ("Investigar a fondo"): ruta adicional pedida por
+            # pregunta; apagada por defecto (agentic_rag.research.enabled).
+            pipeline_fn = answer_question_research
+        elif agentic_config.get("enabled", False):
             pipeline_fn = answer_question_agentic
         else:
             pipeline_fn = answer_question
